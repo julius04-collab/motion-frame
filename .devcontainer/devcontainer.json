@@ -1,9 +1,21 @@
 {
   "name": "motionframe",
   "image": "mcr.microsoft.com/playwright:v1.64.0-jammy",
-  "containerEnv": { "HOST": "0.0.0.0", "PORT": "4173", "BROWSER_CHANNEL": "none", "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "1" },
-  "postCreateCommand": "npm ci",
+  "containerEnv": {
+    "HOST": "0.0.0.0",
+    "PORT": "4173",
+    "BROWSER_CHANNEL": "none",
+    "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "1"
+  },
+  "postCreateCommand": "npm ci --ignore-scripts || npm install --ignore-scripts",
   "postStartCommand": "nohup npm start > /tmp/motionframe.log 2>&1 &",
-  "forwardPorts": [4173],
-  "portsAttributes": { "4173": { "label": "motionframe", "onAutoForward": "openBrowser" } }
+  "forwardPorts": [
+    4173
+  ],
+  "portsAttributes": {
+    "4173": {
+      "label": "motionframe",
+      "onAutoForward": "openBrowser"
+    }
+  }
 }
