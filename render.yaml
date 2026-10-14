@@ -1,0 +1,8 @@
+# One-tap deploy: https://render.com/deploy?repo=https://github.com/julius04-collab/motion-frame
+services:
+  - type: web
+    name: motionframe
+    runtime: docker
+    plan: starter        # headless Chrome needs ~1 GB; the free tier (512 MB) runs out of memory
+    healthCheckPath: /api/health
+    autoDeploy: true
