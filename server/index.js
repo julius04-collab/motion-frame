@@ -246,34 +246,55 @@ function deviceContextOptions(device, dsf) {
   };
 }
 
-/* Runs inside the page: advance every CSS/Web animation and every playing <video> by exactly dtMs,
-   so the film shows the site's real motion at a perfectly even frame rate (time is virtual). */
-const PAGE_STEP = async (dtMs) => {
+/* Runs inside the page (synchronously): advance every CSS/Web animation and every playing <video> by exactly dtMs,
+   so the film shows the site's real motion at a perfectly even frame rate (time is virtual).
+   Waiting for seeks happens in Node (settle), because the page's own timers are frozen with the clock. */
+const PAGE_STEP = (dtMs) => {
   for (const a of document.getAnimations()) {
     if (a.timeline !== document.timeline) continue; // scroll-driven animations follow the real scroll
     if (!a.__mf) { a.__mf = 1; try { a.pause(); } catch { /* ignore */ } }
     try { a.currentTime = (Number(a.currentTime) || 0) + dtMs; } catch { /* ignore */ }
   }
-  const waits = [];
   for (const v of document.querySelectorAll('video')) {
     if (!v.__mf) { v.__mf = 1; v.__play = !v.paused || v.autoplay; v.__t = 0; try { v.pause(); } catch { /* ignore */ } }
     if (!v.__play || !isFinite(v.duration) || v.duration <= 0) continue;
     v.__t += dtMs / 1000;
     v.__t = v.loop ? v.__t % v.duration : Math.min(v.__t, v.duration);
     if (Math.abs(v.currentTime - v.__t) > 0.001) {
-      waits.push(new Promise((res) => {
-        const done = () => { v.removeEventListener('seeked', done); res(); };
-        v.addEventListener('seeked', done); setTimeout(done, 300);
-        v.currentTime = v.__t;
-      }));
+      v.__seeking = true;
+      v.addEventListener('seeked', () => { v.__seeking = false; }, { once: true });
+      try { v.currentTime = v.__t; } catch { v.__seeking = false; }
     }
   }
-  await Promise.all(waits);
-  // make sure anything scrolled into view has its image decoded before the shot
-  const vh = window.innerHeight;
-  const imgs = [...document.images].filter((i) => { const r = i.getBoundingClientRect(); return r.bottom > 0 && r.top < vh && !i.complete; });
-  if (imgs.length) await Promise.race([Promise.all(imgs.map((i) => i.decode().catch(() => {}))), new Promise((r) => setTimeout(r, 1500))]);
 };
+
+// Wait (in real time) for pending video seeks and for images scrolled into view; never wait longer than maxMs.
+async function settle(page, maxMs) {
+  const t0 = Date.now();
+  const ready = () => page.evaluate(() => {
+    for (const v of document.querySelectorAll('video')) if (v.__seeking) return false;
+    const vh = window.innerHeight;
+    for (const i of document.images) { if (i.complete) continue; const r = i.getBoundingClientRect(); if (r.bottom > 0 && r.top < vh) return false; }
+    return true;
+  });
+  while (Date.now() - t0 < maxMs) {
+    if (await ready()) return;
+    await page.waitForTimeout(25);
+  }
+  await page.evaluate(() => document.querySelectorAll('video').forEach((v) => { v.__seeking = false; })); // give up on a stalled seek
+}
+
+// Let background videos buffer before time is frozen, so frame-by-frame seeks are served locally.
+async function bufferVideos(page, maxMs) {
+  const t0 = Date.now();
+  await page.evaluate(() => document.querySelectorAll('video').forEach((v) => { try { v.preload = 'auto'; } catch { /* ignore */ } }));
+  while (Date.now() - t0 < maxMs) {
+    const ok = await page.evaluate(() => [...document.querySelectorAll('video')].every((v) =>
+      !isFinite(v.duration) || v.duration <= 0 || (v.buffered.length > 0 && v.buffered.end(v.buffered.length - 1) >= v.duration - 0.3)));
+    if (ok) return;
+    await page.waitForTimeout(250);
+  }
+}
 
 /* Pass 1 (live mode): drive the real page with a frozen clock and save one screen frame per output frame. */
 const withTimeout = (promise, ms, what) => Promise.race([
@@ -295,11 +316,13 @@ async function captureLive(job, meta, device, scale, fps, frames, scrollSecs, di
       throw userError('That site took too long to load while recording. Try again.');
     }
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
-    await page.waitForTimeout(600);
+    await bufferVideos(page, 8000);
+    await page.waitForTimeout(400);
     // Freeze time here. Videos restart from 0 so a hero/fly-in clip plays from its first frame.
     await page.clock.pauseAt(new Date(Date.now() + 1000));
     await page.evaluate(() => document.querySelectorAll('video').forEach((v) => { try { v.currentTime = 0; } catch { /* ignore */ } }));
     await page.evaluate(PAGE_STEP, 0);
+    await settle(page, 1500);
 
     const dt = 1000 / fps;
     const t0 = Date.now();
@@ -314,6 +337,7 @@ async function captureLive(job, meta, device, scale, fps, frames, scrollSecs, di
       await page.waitForTimeout(20);        // real time: lets IntersectionObservers / scroll handlers react
       await withTimeout(page.clock.runFor(dt), 20_000, 'timers');           // virtual time: timers, rAF, GSAP, etc.
       await withTimeout(page.evaluate(PAGE_STEP, dt), 20_000, 'animations'); // CSS animations + <video>
+      await settle(page, 700);              // real time: pending video seeks / lazy images
       const buf = await withTimeout(page.screenshot({ type: 'jpeg', quality: 88 }), 20_000, 'screenshot');
       fs.writeFileSync(path.join(dir, String(i).padStart(5, '0') + '.jpg'), buf);
       job.frame = i + 1;

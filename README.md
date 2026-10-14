@@ -18,6 +18,7 @@ Env: `PORT`, `HOST`, `ALLOW_PRIVATE=1` (allow localhost/LAN targets when exposed
 - **Still**: scrolls one screenshot of the page. Fastest, but nothing on the page animates.
 
 ## Troubleshooting
+- Hero video missing in Live films on Linux/Codespaces: run `npx playwright install chrome` (real Chrome plays .mp4/H.264; Playwright's Chromium can't) and restart.
 - `spawn EFTYPE` / "video encoder couldn't start": the bundled ffmpeg is broken. motionframe now tests each candidate and falls back; if all fail, install ffmpeg from ffmpeg.org, add it to PATH (or set `FFMPEG_PATH`), restart.
 
 ## Deploying

@@ -4,10 +4,9 @@
   "containerEnv": {
     "HOST": "0.0.0.0",
     "PORT": "4173",
-    "BROWSER_CHANNEL": "none",
     "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "1"
   },
-  "postCreateCommand": "npm ci --ignore-scripts || npm install --ignore-scripts",
+  "postCreateCommand": "npm ci --ignore-scripts || npm install --ignore-scripts; npx playwright install chrome || true",
   "postStartCommand": "nohup npm start > /tmp/motionframe.log 2>&1 &",
   "forwardPorts": [
     4173
