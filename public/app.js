@@ -213,10 +213,18 @@ el.tabFilm.addEventListener('click', () => showTab('film'));
 /* ------------------------------------------------------------------ load site */
 let loadToken = 0;
 async function api(path, opts) {
-  const r = await fetch(path, opts && { method: opts.method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(opts.body) });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || 'Something went wrong. Please try again.');
-  return j;
+  let r;
+  try {
+    r = await fetch(path, opts && { method: opts.method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(opts.body) });
+  } catch {
+    throw new Error('Lost connection to the motionframe server. Check your internet, and that the server is still running.');
+  }
+  const j = await r.json().catch(() => null);
+  if (!r.ok) {
+    if (j && j.error) throw new Error(j.error);
+    throw new Error(`The server didn’t respond properly (HTTP ${r.status}). It may have stopped or run out of memory. Check the terminal where motionframe is running, restart it, and try again.`);
+  }
+  return j || {};
 }
 
 async function loadSite({ fresh = false, keepHint = false } = {}) {

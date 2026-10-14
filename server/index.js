@@ -457,12 +457,15 @@ function enqueue(job) {
   queue = queue.then(async () => {
     if (job.cancelled) { job.status = 'cancelled'; return; }
     job.status = 'rendering';
+    const t0 = Date.now();
+    console.log(`[motionframe] render ${job.id} started (${job.opts.motion}, ${job.opts.quality}, ${job.opts.device}, ${job.opts.format})`);
     try {
       await runRender(job);
+      console.log(`[motionframe] render ${job.id} done in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
       job.status = 'done'; job.progress = 1; job.etaSec = 0;
     } catch (e) {
       if (e.cancelled) job.status = 'cancelled';
-      else { job.status = 'error'; job.error = e.user ? e.message : 'Rendering failed. ' + e.message; console.error(e); }
+      else { job.status = 'error'; job.error = e.user ? e.message : 'Rendering failed. ' + String(e.message).split('\n')[0].slice(0, 240); console.error(`[motionframe] render ${job.id} FAILED:`, e && e.stack || e); }
     }
   });
 }
@@ -558,6 +561,8 @@ app.listen(PORT, HOST, () => {
   if (!FFMPEG) console.warn('motionframe: WARNING — no working ffmpeg found; videos can’t be rendered. ' + NO_FFMPEG);
   console.log(`motionframe running → http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}${ALLOW_PRIVATE ? '' : '  (private addresses blocked)'}`);
 });
+process.on('unhandledRejection', (e) => console.error('[motionframe] unhandled rejection:', e && e.stack || e));
+process.on('uncaughtException', (e) => console.error('[motionframe] uncaught exception:', e && e.stack || e));
 const shutdown = async () => { try { (await browserPromise)?.close(); } catch { /* ignore */ } process.exit(0); };
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
