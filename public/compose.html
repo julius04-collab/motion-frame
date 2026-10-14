@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>motionframe composition</title>
+<style>
+  @font-face { font-family: "Hanken Grotesk"; font-weight: 400; src: url("/fonts/sans/hanken-grotesk-latin-400-normal.woff2") format("woff2"); }
+  @font-face { font-family: "Hanken Grotesk"; font-weight: 500; src: url("/fonts/sans/hanken-grotesk-latin-500-normal.woff2") format("woff2"); }
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: transparent; }
+  body { font-family: "Hanken Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+  #stage { position: relative; overflow: hidden; transform-origin: 0 0; }
+  #bg { position: absolute; inset: 0; }
+  #grain {
+    position: absolute; inset: 0; opacity: .13; mix-blend-mode: overlay; pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  0 0 0 1 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  #rig { position: absolute; left: 50%; top: 50%; will-change: transform; }
+  /* Shadows live on the frames (not a filter on .device): a filter would force the whole scrolling page to re-rasterize every frame. */
+  .device { position: relative; }
+  .mb-lid, .dm-frame, .ph-frame { box-shadow: 0 46px 56px -14px rgba(18, 16, 40, .42), 0 12px 16px -4px rgba(18, 16, 40, .22); }
+  .mb-base { box-shadow: 0 26px 30px -10px rgba(18, 16, 40, .35); }
+  .dm-foot { box-shadow: 0 22px 26px -8px rgba(18, 16, 40, .35); }
+  .br-win { box-shadow: 0 46px 56px -14px rgba(18, 16, 40, .42), 0 12px 16px -4px rgba(18, 16, 40, .22), 0 0 0 1px rgba(0,0,0,.10) !important; }
+
+  /* ---------- screen (shared) ---------- */
+  .screen { position: relative; overflow: hidden; background: #fff; }
+  .page { position: absolute; left: 0; top: 0; will-change: transform; transform-origin: 0 0; }
+  .page img { display: block; max-width: none; }
+
+  /* ---------- MacBook ---------- */
+  .mb-lid {
+    position: relative; margin: 0 auto; padding: 3px; border-radius: 30px 30px 10px 10px;
+    background: linear-gradient(180deg, #d9dce1, #b7bbc2 60%, #a4a8b0);
+  }
+  .mb-bezel { position: relative; background: #08080a; border-radius: 27px 27px 8px 8px; padding: 16px 16px 26px; }
+  .mb-bezel .screen { border-radius: 10px; }
+  .mb-notch { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); width: 168px; height: 28px; background: #08080a; border-radius: 0 0 14px 14px; z-index: 3; }
+  .mb-notch::after { content: ""; position: absolute; left: 50%; top: 9px; width: 8px; height: 8px; margin-left: 40px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #2a3347, #0b0d12 70%); }
+  .mb-base { position: relative; height: 20px; margin: -1px auto 0; width: 112%; left: -6%; border-radius: 0 0 26px 26px / 0 0 22px 22px;
+    background: linear-gradient(180deg, #e3e5e9 0%, #c3c7ce 55%, #a2a6ae 100%); }
+  .mb-base::before { content: ""; position: absolute; left: 50%; top: 0; transform: translateX(-50%); width: 210px; height: 8px; border-radius: 0 0 12px 12px; background: linear-gradient(180deg, #8f939b, #b8bcc3); }
+
+  /* ---------- Desktop monitor ---------- */
+  .dm-frame { position: relative; padding: 3px; border-radius: 26px; background: linear-gradient(180deg, #e1e3e7, #b5b9c0); }
+  .dm-bezel { background: #08080a; border-radius: 23px; padding: 22px; }
+  .dm-bezel .screen { border-radius: 6px; }
+  .dm-neck { position: relative; margin: -2px auto 0; width: 190px; height: 120px; clip-path: polygon(8% 0, 92% 0, 100% 100%, 0 100%); background: linear-gradient(90deg, #a9adb5, #e6e8ec 45%, #b6bac1); }
+  .dm-foot { position: relative; margin: -1px auto 0; width: 360px; height: 16px; border-radius: 6px 6px 18px 18px; background: linear-gradient(180deg, #e4e6ea, #a3a7af); }
+
+  /* ---------- Phone ---------- */
+  .ph-frame { position: relative; padding: 4px; border-radius: 66px; background: linear-gradient(145deg, #d8d9dd, #8c8f97 50%, #cfd1d6); }
+  .ph-bezel { background: #050507; border-radius: 62px; padding: 12px; }
+  .ph-bezel .screen { border-radius: 50px; }
+  .ph-island { position: absolute; left: 50%; top: 26px; transform: translateX(-50%); width: 122px; height: 35px; border-radius: 20px; background: #020203; z-index: 3; }
+  .ph-btn { position: absolute; width: 4px; background: linear-gradient(90deg, #9a9da5, #d2d4d9); border-radius: 2px; }
+  .ph-home { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); width: 136px; height: 5px; border-radius: 3px; background: rgba(10,10,14,.55); z-index: 3; mix-blend-mode: normal; }
+
+  /* ---------- Browser window ---------- */
+  .br-win { border-radius: 16px; overflow: hidden; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.10), inset 0 0 0 1px rgba(255,255,255,.5); }
+  .br-bar { position: relative; height: 58px; display: flex; align-items: center; padding: 0 20px; gap: 9px; background: linear-gradient(180deg, #f6f6f7, #ececee); border-bottom: 1px solid rgba(0,0,0,.09); }
+  .br-dot { width: 14px; height: 14px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+  .br-url { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 46%; height: 34px; border-radius: 10px; background: #e3e3e6; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 16px; color: #3a3a40; letter-spacing: .1px; overflow: hidden; white-space: nowrap; }
+  .br-url svg { flex: none; opacity: .55; }
+
+  /* ---------- Empty / loading / error screens ---------- */
+  .ph-skel { position: absolute; inset: 0; background: #f4f5f7; padding: 5%; display: flex; flex-direction: column; gap: 3.2%; overflow: hidden; }
+  .sk { background: linear-gradient(100deg, #e6e8ec 30%, #f3f4f6 50%, #e6e8ec 70%); background-size: 300% 100%; animation: shimmer 1.8s linear infinite; border-radius: 12px; }
+  @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+  .sk-row { display: flex; gap: 3%; align-items: center; }
+  .sk-msg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; color: #16181d; background: rgba(255,255,255,.88); backdrop-filter: blur(6px); border-radius: 22px; padding: 26px 34px; box-shadow: 0 10px 40px rgba(0,0,0,.10); max-width: 78%; }
+  .sk-msg b { display: block; font-size: 26px; letter-spacing: -.3px; margin-bottom: 8px; }
+  .sk-msg span { display: block; font-size: 18px; color: #5a5f6b; line-height: 1.4; }
+  .spin { width: 34px; height: 34px; border-radius: 50%; border: 3px solid #dfe1e6; border-top-color: #ff5a36; margin: 0 auto 16px; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  body.phone-mode .sk-msg { padding: 20px 22px; } body.phone-mode .sk-msg b { font-size: 21px; } body.phone-mode .sk-msg span { font-size: 15px; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="bg"></div>
+  <div id="grain"></div>
+  <div id="rig"></div>
+</div>
+
+<script type="module">
+import { DEVICES, FORMATS, FPS, resolveBackdrop, timeline, scrollAt } from './shared.js';
+
+const q = new URLSearchParams(location.search);
+const RENDER = q.get('render') === '1';
+const LIVE = q.get('live') === '1';   // screen content comes from pre-recorded live frames, not scrolled strips
+
+const stage = document.getElementById('stage');
+const bg = document.getElementById('bg');
+const rig = document.getElementById('rig');
+
+let cfg = { device: 'macbook', bg: 'aurora', custom: '', format: '16:9', speed: 'normal', shot: '', state: 'empty', message: '' };
+let meta = null;       // capture meta
+let pageEl = null;     // .page element that scrolls
+let tl = { duration: 6, scrollSecs: 4 };
+let fit = 1;
+let scrollMax = 0;
+let playing = !RENDER;
+let t0 = performance.now(), pausedAt = 0, seekTo = null;
+
+/* ----------------------------- device builders ----------------------------- */
+const LOCK = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`;
+
+function build(device, host) {
+  const v = DEVICES[device].viewport;
+  const screenStyle = `width:${v.w}px;height:${v.h}px`;
+  const screen = `<div class="screen" id="screen" style="${screenStyle}"><div class="page" id="page"></div></div>`;
+  switch (device) {
+    case 'desktop': return { w: 1600 + 2 * 25, h: v.h + 50 + 120 + 16, html: `
+      <div class="dm-frame"><div class="dm-bezel">${screen}</div></div><div class="dm-neck"></div><div class="dm-foot"></div>` };
+    case 'phone': return { w: v.w + 2 * 16, h: v.h + 2 * 16, html: `
+      <div class="ph-frame"><div class="ph-island"></div><div class="ph-bezel">${screen}</div><div class="ph-home"></div>
+        <div class="ph-btn" style="left:-3px;top:150px;height:36px"></div><div class="ph-btn" style="left:-3px;top:210px;height:62px"></div><div class="ph-btn" style="left:-3px;top:286px;height:62px"></div>
+        <div class="ph-btn" style="right:-3px;top:230px;height:96px;background:linear-gradient(270deg,#9a9da5,#d2d4d9)"></div></div>` };
+    case 'browser': return { w: v.w, h: v.h + 58, html: `
+      <div class="br-win"><div class="br-bar">
+        <span class="br-dot" style="background:#ff5f57"></span><span class="br-dot" style="background:#febc2e"></span><span class="br-dot" style="background:#28c840"></span>
+        <div class="br-url">${LOCK}<span>${(host || 'yoursite.com').replace(/^www\./, '')}</span></div></div>${screen}</div>` };
+    case 'macbook':
+    default: return { w: Math.round((v.w + 38) * 1.12), h: v.h + 16 + 26 + 6 + 20, html: `
+      <div class="mb-lid" style="width:${v.w + 38}px"><div class="mb-bezel"><div class="mb-notch"></div>${screen}</div></div><div class="mb-base"></div>` };
+  }
+}
+
+function skeleton(device) {
+  const phone = device === 'phone';
+  if (phone) return `<div class="ph-skel"><div class="sk" style="height:5%"></div><div class="sk" style="height:26%;border-radius:18px"></div><div class="sk" style="height:3.6%;width:70%"></div><div class="sk" style="height:3.6%;width:90%"></div><div class="sk-row" style="gap:4%"><div class="sk" style="height:12%;flex:1"></div><div class="sk" style="height:12%;flex:1"></div></div><div class="sk" style="height:18%"></div></div>`;
+  return `<div class="ph-skel"><div class="sk-row"><div class="sk" style="width:5%;height:34px"></div><div style="flex:1"></div><div class="sk" style="width:7%;height:20px"></div><div class="sk" style="width:7%;height:20px"></div><div class="sk" style="width:7%;height:20px"></div><div class="sk" style="width:9%;height:36px;border-radius:20px"></div></div>
+    <div style="display:flex;gap:4%;flex:1;margin-top:2%"><div style="flex:1;display:flex;flex-direction:column;gap:3.5%;justify-content:center"><div class="sk" style="height:44px;width:88%"></div><div class="sk" style="height:44px;width:64%"></div><div class="sk" style="height:18px;width:80%;margin-top:2%"></div><div class="sk" style="height:18px;width:66%"></div><div class="sk" style="height:50px;width:30%;border-radius:26px;margin-top:3%"></div></div><div class="sk" style="flex:1.1;border-radius:24px"></div></div></div>`;
+}
+
+function messageHtml() {
+  if (cfg.state === 'loading') return `<div class="sk-msg"><div class="spin"></div><b>Preparing your preview</b><span>${cfg.message || 'Rendering this site at the selected device size…'}</span></div>`;
+  if (cfg.state === 'error') return `<div class="sk-msg"><b>Couldn’t load that site</b><span>${esc(cfg.message || 'Check the link and try again.')}</span></div>`;
+  return `<div class="sk-msg"><b>Your site goes here</b><span>Paste a link on the left to see it move.</span></div>`;
+}
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* ----------------------------- apply config ----------------------------- */
+function fitStage() {
+  if (RENDER) return;
+  const F = FORMATS[cfg.format] || FORMATS['16:9'];
+  stage.style.transform = `scale(${innerWidth / F.w})`;
+}
+addEventListener('resize', fitStage);
+
+let imgLoadToken = 0;
+async function apply(next) {
+  const prevShot = cfg.shot, prevDevice = cfg.device;
+  cfg = { ...cfg, ...next };
+  const F = FORMATS[cfg.format] || FORMATS['16:9'];
+  stage.style.width = F.w + 'px';
+  stage.style.height = F.h + 'px';
+  fitStage();
+  bg.style.background = resolveBackdrop(cfg.bg, cfg.custom).css;
+  document.body.classList.toggle('phone-mode', cfg.device === 'phone');
+
+  const needsFetch = cfg.shot && cfg.shot !== (meta && meta.id);
+  if (needsFetch) {
+    const r = await fetch('/api/capture/' + cfg.shot);
+    meta = r.ok ? await r.json() : null;
+  }
+  if (!cfg.shot) meta = null;
+
+  const host = meta ? meta.host : '';
+  const d = build(cfg.device, host);
+  rig.style.width = d.w + 'px';
+  rig.style.height = d.h + 'px';
+  rig.innerHTML = `<div class="device" style="width:${d.w}px;height:${d.h}px">${d.html}</div>`;
+  pageEl = document.getElementById('page');
+  const padX = cfg.format === '9:16' ? 0.9 : cfg.format === '1:1' ? 0.86 : 0.84;
+  const padY = cfg.format === '9:16' ? 0.86 : 0.82;
+  fit = Math.min((F.w * padX) / d.w, (F.h * padY) / d.h, 1.4);
+
+  const vp = DEVICES[cfg.device].viewport;
+  const myToken = ++imgLoadToken;
+  if (LIVE) {
+    pageEl.style.width = vp.w + 'px'; pageEl.style.height = vp.h + 'px';
+    const img = new Image(); img.id = 'liveimg'; img.style.cssText = `display:block;width:${vp.w}px;height:${vp.h}px`;
+    pageEl.appendChild(img);
+    scrollMax = 0;
+  } else if (meta && cfg.state === 'ready') {
+    const imgs = [];
+    for (let i = 0; i < meta.strips; i++) {
+      const img = new Image();
+      img.src = `/captures/${meta.id}-${i}.jpg`;
+      img.style.width = vp.w + 'px';
+      img.style.height = Math.min(meta.stripH, meta.height - i * meta.stripH) + 'px';
+      imgs.push(img); pageEl.appendChild(img);
+    }
+    await Promise.all(imgs.map((im) => im.decode().catch(() => {})));
+    if (myToken !== imgLoadToken) return;
+    scrollMax = Math.max(0, meta.height - vp.h);
+  } else {
+    pageEl.style.width = vp.w + 'px';
+    pageEl.style.height = vp.h + 'px';
+    pageEl.innerHTML = skeleton(cfg.device) + messageHtml();
+    scrollMax = 0;
+  }
+  tl = LIVE ? { duration: Number(q.get('dur')) || 6, scrollSecs: 0 } : timeline(scrollMax, cfg.speed);
+  render(currentTime());
+  report();
+  if (!RENDER && (prevShot !== cfg.shot || prevDevice !== cfg.device)) restart();
+  window.__ready = true;
+}
+
+/* ----------------------------- timeline ----------------------------- */
+function render(sec) {
+  const total = tl.duration;
+  const p = Math.min(1, Math.max(0, sec / total));
+  const off = scrollAt(sec, tl.scrollSecs) * scrollMax;
+  if (pageEl && scrollMax > 0) pageEl.style.transform = `translate3d(0, ${-off.toFixed(2)}px, 0)`;
+  // gentle camera push: settles from 1.035x to 1x, with a faint vertical drift
+  const s = LIVE ? fit : fit * (1.035 - 0.035 * p);
+  const ty = LIVE ? 0 : 8 - 16 * p;
+  rig.style.transform = `translate(-50%, -50%) translate3d(0, ${ty.toFixed(2)}px, 0) scale(${s.toFixed(4)})`;
+}
+
+function currentTime() { return RENDER || !playing ? (seekTo ?? 0) : ((performance.now() - t0) / 1000) % (tl.duration + 0.9); }
+function restart() { t0 = performance.now(); seekTo = null; playing = true; }
+
+function report() { if (!RENDER) parent.postMessage({ source: 'motionframe', type: 'info', duration: tl.duration, scrollMax, playing }, '*'); }
+
+function loop() {
+  if (playing) {
+    const sec = Math.min(((performance.now() - t0) / 1000) % (tl.duration + 0.9), tl.duration);
+    seekTo = sec;
+    render(sec);
+    parent.postMessage({ source: 'motionframe', type: 'tick', p: sec / tl.duration }, '*');
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ----------------------------- messaging ----------------------------- */
+window.addEventListener('message', (e) => {
+  const m = e.data;
+  if (!m || m.source !== 'motionframe-app') return;
+  if (m.type === 'config') apply(m.config);
+  if (m.type === 'play') { t0 = performance.now() - (seekTo ?? 0) * 1000; playing = true; report(); }
+  if (m.type === 'pause') { playing = false; report(); }
+  if (m.type === 'seek') { playing = false; seekTo = m.p * tl.duration; render(seekTo); report(); parent.postMessage({ source: 'motionframe', type: 'tick', p: m.p }, '*'); }
+});
+
+// Used by the server-side renderer: deterministic frame stepping.
+window.__seek = (sec) => new Promise((resolve) => {
+  seekTo = sec; render(sec);
+  requestAnimationFrame(() => requestAnimationFrame(resolve));
+});
+window.__seekLive = async (sec, url) => {
+  const img = document.getElementById('liveimg');
+  img.src = url; await img.decode().catch(() => {});
+  seekTo = sec; render(sec);
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+};
+// Live mode composites with ffmpeg: we hand it the still scene, the screen rectangle and a rounded-corner mask.
+window.__scene = (mode) => {
+  const screen = document.getElementById('screen');
+  document.getElementById('liveimg')?.remove();
+  render(0);
+  if (mode === 'scene') { screen.style.background = '#000'; }
+  if (mode === 'mask') {
+    const st = document.createElement('style');
+    st.textContent = '#stage{background:#000!important}#bg,#grain{display:none!important}#stage *{visibility:hidden!important;box-shadow:none!important;filter:none!important;background-image:none!important}#screen{visibility:visible!important;background:#fff!important}';
+    document.head.appendChild(st);
+  }
+  const r = screen.getBoundingClientRect();
+  return { x: r.left, y: r.top, w: r.width, h: r.height };
+};
+window.__info = () => ({ duration: tl.duration, fps: FPS });
+
+if (RENDER) {
+  apply({ device: q.get('device') || 'macbook', bg: q.get('bg') || 'aurora', custom: q.get('custom') || '', format: q.get('format') || '16:9', speed: q.get('speed') || 'normal', shot: q.get('shot') || '', state: 'ready' });
+} else {
+  apply({ state: 'empty' });
+  requestAnimationFrame(loop);
+  parent.postMessage({ source: 'motionframe', type: 'hello' }, '*');
+}
+</script>
+</body>
+</html>
