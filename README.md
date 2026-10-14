@@ -22,3 +22,6 @@ Env: `PORT`, `HOST`, `ALLOW_PRIVATE=1` (allow localhost/LAN targets when exposed
 
 ## Deploying
 motionframe needs a real server: it runs headless Chrome and ffmpeg for up to a few minutes per film and keeps jobs in memory. That does **not** fit Vercel's serverless functions (the page loads, but capture/render can't run). Easiest: tap **Deploy to Render** — https://render.com/deploy?repo=https://github.com/julius04-collab/motion-frame (uses `render.yaml`, works from a phone). The `Dockerfile` also runs on Railway, Fly.io or any VPS. On a public host, private/local addresses are blocked automatically.
+
+### Free option: GitHub Codespaces (works from a phone)
+Repo page → **Code → Codespaces → Create codespace on main**. It installs everything and starts motionframe automatically; open the forwarded port 4173 from the **Ports** tab. Free accounts get a monthly allowance of Codespaces hours; stop the codespace when you're done.
