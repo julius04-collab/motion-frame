@@ -101,7 +101,8 @@ h1 { margin: 0 0 36px; font-size: clamp(34px, 3.4vw, 46px); line-height: 1.06; f
 
 /* actions */
 .actions { display: grid; gap: 12px; }
-.status { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); font-size: 15px; color: var(--muted); }
+.status { min-height: 52px; height: auto; padding-top: 12px; padding-bottom: 12px; line-height: 1.35; display: flex; align-items: center; gap: 10px; padding-left: 18px; padding-right: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); font-size: 15px; color: var(--muted); }
+.status[data-s="error"] { color: #a8321f; border-color: #f0c2b9; background: #fff6f4; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: #c3c9d0; flex: none; }
 .status[data-s="ready"] .dot { background: var(--green); }
 .status[data-s="busy"] .dot { background: var(--amber); animation: pulse 1s ease-in-out infinite; }
@@ -174,7 +175,7 @@ h1 { margin: 0 0 36px; font-size: clamp(34px, 3.4vw, 46px); line-height: 1.06; f
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
 /* keep the primary actions in view while the settings scroll */
-@media (min-width: 961px) {
+@media (min-width: 961px) and (min-height: 880px) {
   .actions { position: sticky; bottom: 0; padding: 16px 0 20px; background: linear-gradient(180deg, rgba(248,248,246,0), var(--bg) 22px); z-index: 4; }
 }
 

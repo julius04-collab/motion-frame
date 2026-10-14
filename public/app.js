@@ -14,6 +14,7 @@ const el = {
 /* ------------------------------------------------------------------ state */
 const saved = (() => { try { return JSON.parse(localStorage.getItem('motionframe.v2') || '{}'); } catch { return {}; } })();
 const state = {
+  err: '',              // last failure message; stays visible until the user acts again
   device: DEVICES[saved.device] ? saved.device : 'macbook',
   backdrop: BACKDROPS[saved.backdrop] || saved.backdrop === 'custom' ? saved.backdrop : 'aurora',
   custom: /^#[0-9a-f]{6}$/i.test(saved.custom || '') ? saved.custom : '',
@@ -105,10 +106,15 @@ function pushConfig(extra = {}) {
   post({ type: 'config', config });
 }
 
+// The scene can finish loading before this script listens (slow networks), so we ask for 'hello' until it answers.
+const ping = () => { if (!frameReady) post({ type: 'ping' }); };
+el.frame.addEventListener('load', ping);
+const pingTimer = setInterval(() => { if (frameReady) clearInterval(pingTimer); else ping(); }, 400);
+
 addEventListener('message', (e) => {
   const m = e.data;
   if (!m || m.source !== 'motionframe' || e.source !== el.frame.contentWindow) return;
-  if (m.type === 'hello') { frameReady = true; pushConfig(queued || {}); queued = null; }
+  if (m.type === 'hello') { if (frameReady) return; frameReady = true; pushConfig(queued || {}); queued = null; }
   if (m.type === 'info') { state.duration = m.duration; state.playing = m.playing; syncPlayer(); }
   if (m.type === 'tick') {
     el.scrub.value = Math.round(m.p * 1000);
@@ -166,8 +172,9 @@ function refreshControls() {
   if (hasFilm) { el.download.href = `/api/download/${state.film.jobId}`; } else el.download.removeAttribute('href');
   el.stage.style.aspectRatio = `${F.w} / ${F.h}`;
   el.stage.style.setProperty('--ar', (F.w / F.h).toFixed(4));
-  if (state.phase === 'ready' && !rendering && !state.film) setStatus('ready', `Ready to generate in ${q.label}`);
-  if (state.phase === 'ready' && state.film && !rendering) setStatus('done', 'Film ready — download it or tweak and re-render');
+  if (state.err && !rendering) setStatus('error', state.err);
+  else if (state.phase === 'ready' && !rendering && !state.film) setStatus('ready', `Ready to generate in ${q.label}`);
+  if (!state.err && state.phase === 'ready' && state.film && !rendering) setStatus('done', 'Film ready — download it or tweak and re-render');
   if (el.film.hidden) el.caption.textContent = state.motion === 'live' ? 'This preview shows the layout. Animations, background video and sticky headers are recorded live when you generate the film.' : 'Still mode scrolls a screenshot of the page. Switch to Live to include animations and video.';
   syncs.forEach((s) => s()); applyBackdropUI(); syncPlayer();
 }
@@ -215,7 +222,7 @@ async function api(path, opts) {
 async function loadSite({ fresh = false, keepHint = false } = {}) {
   const raw = el.url.value.trim();
   if (!raw) { setHint('Paste a website link first.', true); el.url.focus(); return; }
-  const token = ++loadToken;
+  const token = ++loadToken; state.err = '';
   cancelJob();
   invalidateFilm();
   state.phase = 'loading'; state.capture = null;
@@ -274,7 +281,7 @@ function cancelJob() {
 
 el.generate.addEventListener('click', async () => {
   if (!state.capture) return;
-  invalidateFilm();
+  invalidateFilm(); state.err = '';
   el.generate.disabled = true;
   try {
     const { jobId } = await api('/api/render', { method: 'POST', body: {
@@ -286,7 +293,7 @@ el.generate.addEventListener('click', async () => {
     state.playing = false; post({ type: 'pause' });
     poll();
   } catch (e) {
-    setStatus('error', e.message); setTimeout(refreshControls, 4000);
+    state.err = e.message;
   }
   refreshControls();
 });
@@ -306,20 +313,23 @@ function updateRender(j) {
   setStatus('busy', j.status === 'queued' ? 'Waiting for the renderer…' : `Rendering ${pct}%`);
 }
 
+let pollFails = 0;
 async function poll() {
   const job = state.job; if (!job) return;
   try {
     const j = await api(`/api/jobs/${job.id}`);
+    pollFails = 0;
     if (state.job !== job) return;
     job.status = j.status;
     if (j.status === 'done') return finish(job, j);
-    if (j.status === 'error') throw new Error(j.error || 'Rendering failed.');
+    if (j.status === 'error') throw Object.assign(new Error(j.error || 'Rendering failed.'), { final: true });
     if (j.status === 'cancelled') { el.render.hidden = true; state.job = null; refreshControls(); return; }
     updateRender(j);
   } catch (e) {
     if (state.job !== job) return;
-    el.render.hidden = true; state.job = null; refreshControls();
-    setStatus('error', e.message); setTimeout(refreshControls, 6000); return;
+    // a brief network hiccup (common on tunnels/phones) shouldn't kill a render that is still running
+    if (!e.final && !/Unknown job/i.test(e.message) && ++pollFails < 8) { pollTimer = setTimeout(poll, 1500); return; }
+    el.render.hidden = true; state.job = null; state.err = e.message || 'Rendering failed.'; refreshControls(); return;
   }
   pollTimer = setTimeout(poll, 600);
 }

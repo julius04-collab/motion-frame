@@ -243,6 +243,7 @@ function loop() {
 window.addEventListener('message', (e) => {
   const m = e.data;
   if (!m || m.source !== 'motionframe-app') return;
+  if (m.type === 'ping') parent.postMessage({ source: 'motionframe', type: 'hello' }, '*');
   if (m.type === 'config') apply(m.config);
   if (m.type === 'play') { t0 = performance.now() - (seekTo ?? 0) * 1000; playing = true; report(); }
   if (m.type === 'pause') { playing = false; report(); }
