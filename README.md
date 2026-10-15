@@ -26,3 +26,8 @@ motionframe needs a real server: it runs headless Chrome and ffmpeg for up to a 
 
 ### Free option: GitHub Codespaces (works from a phone)
 Repo page → **Code → Codespaces → Create codespace on main**. It installs everything and starts motionframe automatically; open the forwarded port 4173 from the **Ports** tab. Free accounts get a monthly allowance of Codespaces hours; stop the codespace when you're done.
+
+## Running it publicly
+- Rate limits are on automatically when the server isn't bound to localhost: 6 renders and 30 site loads per IP per 15 minutes, and one active render per IP. Tune with `RENDERS_PER_15MIN`, `CAPTURES_PER_15MIN`, or turn off with `RATE_LIMIT=off`.
+- Private/local addresses are blocked for visited sites (SSRF protection) unless `ALLOW_PRIVATE=1`.
+- Finished videos and captures are deleted after 2 hours.

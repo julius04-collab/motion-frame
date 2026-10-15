@@ -498,6 +498,24 @@ function enqueue(job) {
 
 const app = express();
 app.disable('x-powered-by');
+app.set('trust proxy', 1); // behind Render/Railway/Fly the real client IP is in X-Forwarded-For
+
+// Basic abuse protection for a public deployment (off when running on your own machine, or with RATE_LIMIT=off).
+const RATE_LIMIT = process.env.RATE_LIMIT ? process.env.RATE_LIMIT !== 'off' : !LOOPBACK;
+const hits = new Map(); // "name|ip" -> [timestamps]
+function rateLimit(name, max, windowMs) {
+  return (req, res, next) => {
+    if (!RATE_LIMIT) return next();
+    const key = name + '|' + req.ip, now = Date.now();
+    const list = (hits.get(key) || []).filter((t) => now - t < windowMs);
+    if (list.length >= max) {
+      res.set('Retry-After', String(Math.ceil((windowMs - (now - list[0])) / 1000)));
+      return res.status(429).json({ error: `You’re going a bit fast. Please wait a few minutes and try again (limit: ${max} per ${Math.round(windowMs / 60000)} min).` });
+    }
+    list.push(now); hits.set(key, list); next();
+  };
+}
+setInterval(() => { const c = Date.now() - 3600_000; for (const [k, v] of hits) if (!v.some((t) => t > c)) hits.delete(k); }, 10 * 60_000).unref();
 app.use(express.json({ limit: '50kb' }));
 app.use(express.static(path.join(ROOT, 'public')));
 app.use('/fonts/sans', express.static(path.join(ROOT, 'node_modules/@fontsource/hanken-grotesk/files'), { maxAge: '30d' }));
@@ -511,7 +529,7 @@ const wrap = (fn) => (req, res) => fn(req, res).catch((e) => {
   res.status(e.user ? 400 : 500).json({ error: e.user ? e.message : 'Something went wrong on our side. Please try again.' });
 });
 
-app.post('/api/capture', wrap(async (req, res) => {
+app.post('/api/capture', rateLimit('capture', Number(process.env.CAPTURES_PER_15MIN || 30), 15 * 60_000), wrap(async (req, res) => {
   const url = await normalizeUrl(req.body.url);
   res.json(await capture(url, req.body.device || 'macbook', !!req.body.fresh));
 }));
@@ -522,14 +540,16 @@ app.get('/api/capture/:id', (req, res) => {
   res.json(m);
 });
 
-app.post('/api/render', wrap(async (req, res) => {
+app.post('/api/render', rateLimit('render', Number(process.env.RENDERS_PER_15MIN || 6), 15 * 60_000), wrap(async (req, res) => {
   const b = req.body || {};
   if (!captures.has(b.captureId)) throw userError('That preview expired. Reload the site and try again.');
   const fps = Number(b.fps || 30);
   if (!DEVICES[b.device] || !FORMATS[b.format] || !QUALITIES[b.quality] || !SPEEDS[b.speed] || !FPS_OPTIONS.includes(fps)) throw userError('Invalid settings.');
   if (!FFMPEG) throw userError(NO_FFMPEG);
   const motion = MOTIONS[b.motion] ? b.motion : 'live';
-  const pending = [...jobs.values()].filter((j) => j.status === 'queued' || j.status === 'rendering').length;
+  const active = [...jobs.values()].filter((j) => j.status === 'queued' || j.status === 'rendering');
+  if (RATE_LIMIT && active.some((j) => j.ip === req.ip)) throw userError('You already have a video rendering. Please wait for it to finish (or cancel it) first.');
+  const pending = active.length;
   if (pending >= 4) throw userError('The renderer is busy. Please try again in a minute.');
   const backdrop = b.backdrop === 'custom' || BACKDROPS[b.backdrop] ? b.backdrop : 'aurora';
   const job = {
@@ -538,7 +558,7 @@ app.post('/api/render', wrap(async (req, res) => {
       captureId: b.captureId, device: b.device, format: b.format, quality: b.quality, speed: b.speed, fps, backdrop, motion,
       custom: /^#[0-9a-f]{6}$/i.test(b.custom || '') ? b.custom : '',
     },
-    progress: 0, etaSec: null, createdAt: Date.now(),
+    progress: 0, etaSec: null, createdAt: Date.now(), ip: req.ip,
   };
   jobs.set(job.id, job);
   enqueue(job);

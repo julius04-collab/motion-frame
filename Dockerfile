@@ -5,7 +5,8 @@ WORKDIR /app
 COPY package*.json ./
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 RUN npm ci --ignore-scripts
+RUN npx playwright install --with-deps chrome
 COPY . .
-ENV HOST=0.0.0.0 PORT=4173 BROWSER_CHANNEL=none
+ENV HOST=0.0.0.0 PORT=4173
 EXPOSE 4173
 CMD ["node", "server/index.js"]
