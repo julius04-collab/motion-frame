@@ -7,7 +7,7 @@
     "PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD": "1"
   },
   "postCreateCommand": "npm ci --ignore-scripts || npm install --ignore-scripts; npx playwright install chrome || true",
-  "postStartCommand": "nohup npm start > /tmp/motionframe.log 2>&1 &",
+  "postStartCommand": "setsid nohup npm start > /tmp/motionframe.log 2>&1 < /dev/null &",
   "forwardPorts": [
     4173
   ],
