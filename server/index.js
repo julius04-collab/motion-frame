@@ -498,7 +498,9 @@ function enqueue(job) {
 
 const app = express();
 app.disable('x-powered-by');
-app.set('trust proxy', 1); // behind Render/Railway/Fly the real client IP is in X-Forwarded-For
+app.set('trust proxy', true); // behind Render/Railway/Fly the real client IP is in X-Forwarded-For
+// Hosts put the visitor's IP in different headers; without this every visitor could share one limit.
+const clientIp = (req) => String(req.get('cf-connecting-ip') || req.get('true-client-ip') || req.ip || '').split(',')[0].trim();
 
 // Basic abuse protection for a public deployment (off when running on your own machine, or with RATE_LIMIT=off).
 const RATE_LIMIT = process.env.RATE_LIMIT ? process.env.RATE_LIMIT !== 'off' : !LOOPBACK;
@@ -506,7 +508,7 @@ const hits = new Map(); // "name|ip" -> [timestamps]
 function rateLimit(name, max, windowMs) {
   return (req, res, next) => {
     if (!RATE_LIMIT) return next();
-    const key = name + '|' + req.ip, now = Date.now();
+    const key = name + '|' + clientIp(req), now = Date.now();
     const list = (hits.get(key) || []).filter((t) => now - t < windowMs);
     if (list.length >= max) {
       res.set('Retry-After', String(Math.ceil((windowMs - (now - list[0])) / 1000)));
@@ -548,7 +550,7 @@ app.post('/api/render', rateLimit('render', Number(process.env.RENDERS_PER_15MIN
   if (!FFMPEG) throw userError(NO_FFMPEG);
   const motion = MOTIONS[b.motion] ? b.motion : 'live';
   const active = [...jobs.values()].filter((j) => j.status === 'queued' || j.status === 'rendering');
-  if (RATE_LIMIT && active.some((j) => j.ip === req.ip)) throw userError('You already have a video rendering. Please wait for it to finish (or cancel it) first.');
+  if (RATE_LIMIT && active.some((j) => j.ip === clientIp(req))) throw userError('You already have a video rendering. Please wait for it to finish (or cancel it) first.');
   const pending = active.length;
   if (pending >= 4) throw userError('The renderer is busy. Please try again in a minute.');
   const backdrop = b.backdrop === 'custom' || BACKDROPS[b.backdrop] ? b.backdrop : 'aurora';
@@ -558,7 +560,7 @@ app.post('/api/render', rateLimit('render', Number(process.env.RENDERS_PER_15MIN
       captureId: b.captureId, device: b.device, format: b.format, quality: b.quality, speed: b.speed, fps, backdrop, motion,
       custom: /^#[0-9a-f]{6}$/i.test(b.custom || '') ? b.custom : '',
     },
-    progress: 0, etaSec: null, createdAt: Date.now(), ip: req.ip,
+    progress: 0, etaSec: null, createdAt: Date.now(), ip: clientIp(req),
   };
   jobs.set(job.id, job);
   enqueue(job);
