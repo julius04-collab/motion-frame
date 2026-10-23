@@ -310,6 +310,12 @@ async function captureLive(job, meta, device, scale, fps, frames, scrollSecs, di
     await guardPrivate(ctx);
     const page = await ctx.newPage();
     await page.clock.install({ time: Date.now() });
+    await page.addInitScript(() => {
+      const st = document.createElement('style');
+      st.textContent = 'html,body{scroll-behavior:auto!important}';
+      (document.head || document.documentElement).appendChild(st);
+      document.addEventListener('DOMContentLoaded', () => document.head.appendChild(st));
+    });
     try {
       await page.goto(meta.url, { waitUntil: 'load', timeout: 30_000 });
     } catch (e) {
@@ -332,7 +338,8 @@ async function captureLive(job, meta, device, scale, fps, frames, scrollSecs, di
       const frac = scrollAt(sec, scrollSecs);
       await page.evaluate(({ f, c: cap }) => {
         const max = Math.max(0, Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0) - window.innerHeight);
-        window.scrollTo(0, Math.round(f * Math.min(max, cap - window.innerHeight)));
+        // 'instant' overrides a site's CSS scroll-behavior:smooth, which would otherwise glide (and shake) between frames
+        window.scrollTo({ top: Math.round(f * Math.min(max, cap - window.innerHeight)), left: 0, behavior: 'instant' });
       }, { f: frac, c: MAX_PAGE_CSS });
       await page.waitForTimeout(20);        // real time: lets IntersectionObservers / scroll handlers react
       await withTimeout(page.clock.runFor(dt), 20_000, 'timers');           // virtual time: timers, rAF, GSAP, etc.
