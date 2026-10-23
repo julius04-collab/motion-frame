@@ -204,3 +204,7 @@ h1 { margin: 0 0 36px; font-size: clamp(34px, 3.4vw, 46px); line-height: 1.06; f
 .musicrow .mini-l { margin: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vol { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 .vol input { width: 120px; accent-color: var(--accent); }
+
+.fine.left { text-align: left; margin-top: 8px; }
+.chip.mine { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; line-height: 38px; }
+.chip.add { border-style: dashed; color: var(--muted); }

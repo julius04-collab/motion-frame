@@ -1,10 +1,16 @@
 // Shared by the v2 server (recording) and the browser (mockup + export). No DOM / Node APIs here.
 
+// One desktop recording (1440×900) feeds MacBook, Desktop and Browser; one phone recording feeds Phone.
+// Both are recorded together, so switching device never means waiting again.
+export const RECORDERS = {
+  desktop: { label: 'desktop', viewport: { w: 1440, h: 900 }, dsf: 2, mobile: false },
+  phone:   { label: 'phone',   viewport: { w: 390,  h: 844 }, dsf: 3, mobile: true },
+};
 export const DEVICES = {
-  macbook: { label: 'MacBook', viewport: { w: 1440, h: 900 }, dsf: 2, mobile: false },
-  desktop: { label: 'Desktop', viewport: { w: 1600, h: 900 }, dsf: 2, mobile: false },
-  phone:   { label: 'Phone',   viewport: { w: 390,  h: 844 }, dsf: 3, mobile: true },
-  browser: { label: 'Browser', viewport: { w: 1440, h: 860 }, dsf: 2, mobile: false },
+  macbook: { label: 'MacBook', rec: 'desktop', viewport: RECORDERS.desktop.viewport },
+  desktop: { label: 'Desktop', rec: 'desktop', viewport: RECORDERS.desktop.viewport },
+  phone:   { label: 'Phone',   rec: 'phone',   viewport: RECORDERS.phone.viewport },
+  browser: { label: 'Browser', rec: 'desktop', viewport: RECORDERS.desktop.viewport },
 };
 
 export const FORMATS = {

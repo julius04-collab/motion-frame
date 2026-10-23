@@ -12,7 +12,7 @@ import os from 'node:os';
 import dns from 'node:dns/promises';
 import net from 'node:net';
 import crypto from 'node:crypto';
-import { DEVICES, QUALITIES, SPEEDS, FPS_OPTIONS, LENGTHS, timeline, scrollAt } from './public/shared.js';
+import { DEVICES, RECORDERS, QUALITIES, SPEEDS, FPS_OPTIONS, LENGTHS, timeline, scrollAt } from './public/shared.js';
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -164,8 +164,8 @@ const recByKey = new Map();  // key -> id
 let queue = Promise.resolve();
 
 async function record(rec) {
-  const { url, device: deviceId, speed, fps, quality, codec, length } = rec.opts;
-  const device = DEVICES[deviceId];
+  const { url, kind, speed, fps, quality, codec, length } = rec.opts;
+  const device = RECORDERS[kind];
   const dsf = quality === '4k' ? device.dsf : Math.max(1, Math.ceil(device.dsf / 2));
   const browser = await getBrowser();
   const ctx = await browser.newContext(contextOptions(device, dsf));
@@ -266,7 +266,7 @@ function enqueue(rec) {
     if (rec.cancelled) { rec.state = 'cancelled'; return; }
     rec.state = 'recording';
     const t0 = Date.now();
-    console.log(`[v2] recording ${rec.id} ${rec.opts.url} (${rec.opts.device}, ${rec.opts.quality}, ${rec.opts.fps}fps)`);
+    console.log(`[v2] recording ${rec.id} ${rec.opts.url} (${rec.opts.kind}, ${rec.opts.quality}, ${rec.opts.fps}fps, length ${rec.opts.length || 'auto'})`);
     try {
       await record(rec);
       rec.state = 'done'; rec.progress = 1; rec.etaSec = 0; rec.latest = null;
@@ -308,7 +308,7 @@ const wrap = (fn) => (req, res) => fn(req, res).catch((e) => {
 });
 const view = (r) => ({
   id: r.id, state: r.state, phase: r.phase, progress: r.progress || 0, frame: r.frame || 0, frames: r.frames || 0, etaSec: r.etaSec ?? null,
-  error: r.error, url: r.opts.url, host: new URL(r.opts.url).host, title: r.title, device: r.opts.device, fps: r.opts.fps, quality: r.opts.quality,
+  error: r.error, url: r.opts.url, host: new URL(r.opts.url).host, title: r.title, kind: r.opts.kind, fps: r.opts.fps, quality: r.opts.quality,
   duration: r.duration, pageHeight: r.pageHeight, fullHeight: r.fullHeight, truncated: r.truncated, width: r.width, height: r.height,
   videoUrl: r.state === 'done' ? `/rec/${r.id}.${r.ext || 'mp4'}` : undefined,
 });
@@ -318,14 +318,15 @@ app.post('/api/record', rateLimit('record', Number(process.env.RECORDS_PER_15MIN
   const b = req.body || {};
   const url = await normalizeUrl(b.url);
   const fps = Number(b.fps || 30);
-  if (!DEVICES[b.device] || !SPEEDS[b.speed] || !QUALITIES[b.quality] || !FPS_OPTIONS.includes(fps)) throw userError('Invalid settings.');
+  const kind = RECORDERS[b.kind] ? b.kind : (DEVICES[b.device] ? DEVICES[b.device].rec : null);
+  if (!kind || !SPEEDS[b.speed] || !QUALITIES[b.quality] || !FPS_OPTIONS.includes(fps)) throw userError('Invalid settings.');
   const length = LENGTHS.includes(Number(b.length)) ? Number(b.length) : 0;
-  const opts = { url, device: b.device, speed: b.speed, quality: b.quality, fps, codec: b.codec === 'vp9' ? 'vp9' : 'h264', length };
+  const opts = { url, kind, speed: b.speed, quality: b.quality, fps, codec: b.codec === 'vp9' ? 'vp9' : 'h264', length };
   const key = crypto.createHash('sha1').update(JSON.stringify(opts)).digest('hex').slice(0, 16);
   const existing = recs.get(recByKey.get(key));
   if (!b.fresh && existing && ['queued', 'recording', 'done'].includes(existing.state)) return res.json(view(existing));
   const active = [...recs.values()].filter((r) => r.state === 'queued' || r.state === 'recording');
-  if (active.length >= 4) throw userError('The recorder is busy. Please try again in a minute.');
+  if (active.length >= 6) throw userError('The recorder is busy. Please try again in a minute.');
   const rec = { id: crypto.randomUUID().replace(/-/g, '').slice(0, 12), key, opts, createdAt: Date.now(), ip: clientIp(req) };
   recs.set(rec.id, rec); recByKey.set(key, rec.id);
   enqueue(rec);

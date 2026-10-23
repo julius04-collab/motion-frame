@@ -38,5 +38,6 @@ Repo page → **Code → Codespaces → Create codespace on main**. It installs 
 - Your browser draws the mockup and backdrop, previews the real motion, and exports the MP4 (WebCodecs). Backdrop, format and camera changes are instant and free; device, speed, resolution and fps re-record.
 - Exports H.264 MP4 in Chrome/Edge/Safari; falls back to VP9 MP4, or WebM in browsers without WebCodecs.
 - Length: Auto, or exactly 10/15/20/30/45 s (re-records).
-- Music: three original tracks made in the browser (Calm, Upbeat, Lo-fi) or upload your own; volume, fade in/out, loops to fit. Added to the MP4 (AAC, or Opus where AAC isn't available).
+- Desktop and phone versions are recorded together on the first go, so switching device is instant.
+- Music: four original tracks made in the browser (Calm piano, Upbeat, Lo-fi, Cinematic) or upload your own (stays selectable as its own chip); volume, fade in/out, loops to fit. Added to the MP4 (AAC, or Opus where AAC isn't available).
 - Hugging Face: use `deploy/huggingface-v2/Dockerfile` in its own Space.
