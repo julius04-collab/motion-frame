@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>motionframe v2 — turn live sites into launch-ready films</title>
+<meta name="description" content="Paste a link, watch your real site move inside a device mockup, and download the video.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%231a1f2b'/%3E%3Cpath d='M11 21 21 11M13 11h8v8' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div class="shell">
+  <header class="top">
+    <a class="brand" href="/" aria-label="motionframe home">
+      <span class="mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg></span>
+      <span class="word">motionframe</span>
+      <span class="beta">V2 BETA</span>
+    </a>
+    <p class="tag">Turn live sites into launch-ready films.</p>
+  </header>
+
+  <main class="grid">
+    <section class="panel" aria-label="Project settings">
+      <p class="eyebrow">NEW PROJECT</p>
+      <h1>Make your site<br>move beautifully.</h1>
+      <div class="warn" id="warn" role="alert" hidden></div>
+
+      <form class="field" id="urlForm" novalidate>
+        <label class="label" for="url">Website URL</label>
+        <div class="urlrow">
+          <input id="url" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://example.com" aria-describedby="urlHint">
+          <button class="go" id="go" type="submit" aria-label="Record site">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M9 7h8v8"/></svg>
+          </button>
+        </div>
+        <p class="hint" id="urlHint">Press Enter. We record your live site once, then you can restyle it instantly.</p>
+        <div class="recent" id="recent" aria-label="Recent links"></div>
+      </form>
+
+      <div class="field">
+        <span class="label" id="lblDevice">Device</span>
+        <div class="chips" role="radiogroup" aria-labelledby="lblDevice" id="devices"></div>
+      </div>
+      <div class="field">
+        <span class="label" id="lblBackdrop">Backdrop</span>
+        <div class="swatches" role="radiogroup" aria-labelledby="lblBackdrop" id="backdrops"></div>
+      </div>
+      <div class="field">
+        <span class="label" id="lblFormat">Format</span>
+        <div class="chips sm" role="radiogroup" aria-labelledby="lblFormat" id="formats"></div>
+      </div>
+
+      <details class="more" id="more">
+        <summary><span>Motion &amp; quality</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></summary>
+        <div class="more-body">
+          <div class="mini"><span class="mini-l">Scroll speed <small class="re">· re-records</small></span><div class="chips sm" role="radiogroup" aria-label="Scroll speed" id="speeds"></div></div>
+          <div class="mini"><span class="mini-l">Resolution <small class="re">· re-records</small></span><div class="chips sm" role="radiogroup" aria-label="Resolution" id="qualities"></div></div>
+          <div class="mini"><span class="mini-l">Frame rate <small class="re">· re-records</small></span><div class="chips sm" role="radiogroup" aria-label="Frame rate" id="fpsOpts"></div></div>
+          <label class="toggle"><input type="checkbox" id="push" checked> Gentle camera push-in</label>
+        </div>
+      </details>
+
+      <div class="actions">
+        <div class="status" id="status" role="status" aria-live="polite"><i class="dot"></i><span id="statusText">Paste a link to begin</span></div>
+        <button class="btn primary" id="export" type="button" disabled><i class="dot"></i><span id="exportText">Download MP4</span></button>
+        <p class="fine" id="fine">Backdrop, format and camera changes are instant and free — no re-recording.</p>
+      </div>
+    </section>
+
+    <section class="stage-col" aria-label="Preview">
+      <div class="stage-head">
+        <span class="mono pill">LIVE PREVIEW · REAL MOTION</span>
+        <span class="mono" id="stageMeta">1920 × 1080 · 1080p</span>
+      </div>
+      <div class="stage-wrap">
+        <div class="stage" id="stage" style="aspect-ratio:16/9">
+          <canvas id="canvas" aria-label="Mockup preview"></canvas>
+          <div class="render" id="overlay" hidden>
+            <div class="render-card">
+              <p class="mono" id="ovPhase">Recording your site</p>
+              <div class="render-pct"><span id="ovPct">0</span><small>%</small></div>
+              <div class="bar"><i id="ovBar"></i></div>
+              <p class="render-sub" id="ovSub">Opening the page…</p>
+              <button class="btn ghost sm" id="ovCancel" type="button">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="player" id="player">
+        <button class="pbtn" id="play" type="button" aria-label="Pause preview" disabled>
+          <svg id="icoPause" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>
+          <svg id="icoPlay" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" hidden><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z"/></svg>
+        </button>
+        <input id="scrub" type="range" min="0" max="1000" value="0" aria-label="Scrub preview" disabled>
+        <span class="mono time" id="time">0.0 / 0.0s</span>
+      </div>
+      <p class="caption" id="caption">The preview is the real recording of your site. The download matches it frame for frame.</p>
+    </section>
+  </main>
+</div>
+<video id="rec" muted playsinline preload="auto" crossorigin="anonymous" hidden></video>
+<script type="module" src="/app.js"></script>
+</body>
+</html>

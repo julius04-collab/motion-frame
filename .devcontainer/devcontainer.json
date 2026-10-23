@@ -9,12 +9,16 @@
   "postCreateCommand": "npm ci --ignore-scripts || npm install --ignore-scripts; npx playwright install chrome || true",
   "postStartCommand": "setsid nohup npm start > /tmp/motionframe.log 2>&1 < /dev/null &",
   "forwardPorts": [
-    4173
+    4173,
+    4174
   ],
   "portsAttributes": {
     "4173": {
       "label": "motionframe",
       "onAutoForward": "openBrowser"
+    },
+    "4174": {
+      "label": "motionframe v2"
     }
   }
 }

@@ -31,3 +31,10 @@ Repo page → **Code → Codespaces → Create codespace on main**. It installs 
 - Rate limits are on automatically when the server isn't bound to localhost: 6 renders and 30 site loads per IP per 15 minutes, and one active render per IP. Tune with `RENDERS_PER_15MIN`, `CAPTURES_PER_15MIN`, or turn off with `RATE_LIMIT=off`.
 - Private/local addresses are blocked for visited sites (SSRF protection) unless `ALLOW_PRIVATE=1`.
 - Finished videos and captures are deleted after 2 hours.
+
+## v2 (experimental): record once, style in the browser
+`npm run v2` → http://127.0.0.1:4174 (v1 is unchanged on 4173).
+- The server only records the site once (real animations, frame-accurate) into a screen video. You watch it record live inside the mockup.
+- Your browser draws the mockup and backdrop, previews the real motion, and exports the MP4 (WebCodecs). Backdrop, format and camera changes are instant and free; device, speed, resolution and fps re-record.
+- Exports H.264 MP4 in Chrome/Edge/Safari; falls back to VP9 MP4, or WebM in browsers without WebCodecs.
+- Hugging Face: use `deploy/huggingface-v2/Dockerfile` in its own Space.
