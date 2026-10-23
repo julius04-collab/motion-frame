@@ -132,7 +132,7 @@ const captureSlot = limiter(2);
 const captures = new Map();      // id -> meta
 const captureByKey = new Map();  // key -> { id, at }
 const STRIP_CSS = 2400;          // css px per strip (keeps every image far below Chromium's 16384px limit)
-const MAX_PAGE_CSS = 10000;      // longest page we'll film; videos stay a sensible length
+const MAX_PAGE_CSS = Number(process.env.MAX_PAGE_PX || 30000); // longest page we'll film (footers included on normal sites)
 
 const stripPath = (id, i) => path.join(DATA, 'captures', `${id}-${i}.jpg`);
 
@@ -330,10 +330,10 @@ async function captureLive(job, meta, device, scale, fps, frames, scrollSecs, di
       if (job.cancelled) throw Object.assign(new Error('Cancelled'), { cancelled: true });
       const sec = i / fps;
       const frac = scrollAt(sec, scrollSecs);
-      await page.evaluate((f) => {
+      await page.evaluate(({ f, c: cap }) => {
         const max = Math.max(0, Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0) - window.innerHeight);
-        window.scrollTo(0, Math.round(f * Math.min(max, 10000 - window.innerHeight)));
-      }, frac);
+        window.scrollTo(0, Math.round(f * Math.min(max, cap - window.innerHeight)));
+      }, { f: frac, c: MAX_PAGE_CSS });
       await page.waitForTimeout(20);        // real time: lets IntersectionObservers / scroll handlers react
       await withTimeout(page.clock.runFor(dt), 20_000, 'timers');           // virtual time: timers, rAF, GSAP, etc.
       await withTimeout(page.evaluate(PAGE_STEP, dt), 20_000, 'animations'); // CSS animations + <video>

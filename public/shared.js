@@ -118,7 +118,7 @@ export function easeScroll(t) {
 // Timeline: hold -> scroll -> hold. Returns { duration, scrollSecs }.
 export function timeline(scrollPx, speed = 'normal') {
   const pps = (SPEEDS[speed] || SPEEDS.normal).pxPerSec;
-  const scrollSecs = scrollPx <= 0 ? 0 : Math.min(18, Math.max(3.5, scrollPx / pps));
+  const scrollSecs = scrollPx <= 0 ? 0 : Math.min(24, Math.max(3.5, scrollPx / pps));
   const duration = HOLD_START + scrollSecs + HOLD_END;
   return { duration, scrollSecs };
 }
