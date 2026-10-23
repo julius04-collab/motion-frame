@@ -103,11 +103,34 @@ function compose(ctx, id, dur) {
   }
 }
 
+// When an uploaded song is shorter than the film, repeat it with a smooth crossfade at each seam
+// (instead of a hard restart).
+function loopWithCrossfade(src, dur) {
+  const sr = src.sampleRate, need = Math.ceil(dur * sr), ch = src.numberOfChannels;
+  if (src.length >= need) return src;
+  const xf = Math.min(Math.floor(1.5 * sr), Math.floor(src.length / 4)); // 1.5 s crossfade (shorter for tiny clips)
+  const step = src.length - xf;
+  const out = new AudioBuffer({ numberOfChannels: ch, length: need, sampleRate: sr });
+  for (let c = 0; c < ch; c++) {
+    const s = src.getChannelData(c), o = out.getChannelData(c);
+    for (let start = 0, k = 0; start < need; start += step, k++) {
+      for (let i = 0; i < src.length && start + i < need; i++) {
+        let g = 1;
+        if (k > 0 && i < xf) g = i / xf;                                          // fade this copy in
+        if (start + step < need && i >= step) g *= 1 - (i - step) / xf;                           // fade out under the next copy (sums to 1, no volume bump)
+        o[start + i] += s[i] * g;
+      }
+    }
+  }
+  return out;
+}
+
 // Fades + volume, and loops the source when the film is longer than the track.
 async function finish(source, dur, volume) {
+  source = loopWithCrossfade(source, dur);
   const ctx = new OfflineAudioContext(2, Math.ceil(dur * SR), SR);
   const s = ctx.createBufferSource(), g = ctx.createGain();
-  s.buffer = source; s.loop = true;
+  s.buffer = source;
   const fadeIn = Math.min(0.6, dur / 4), fadeOut = Math.min(1.8, dur / 3);
   g.gain.setValueAtTime(0, 0);
   g.gain.linearRampToValueAtTime(volume, fadeIn);

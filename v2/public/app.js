@@ -142,7 +142,12 @@ addEventListener('pointerdown', () => { try { audioCtx().resume(); } catch { /* 
 el.vol.value = Math.round(state.volume * 100);
 function musicLabel() {
   if (state.track === 'none') return 'No music. Pick a track, or upload your own.';
-  if (state.track === 'upload') return state.uploadName ? `♪ ${state.uploadName}` : 'Choose an audio file…';
+  if (state.track === 'upload') {
+    if (!state.uploadName) return 'Choose an audio file…';
+    const film = state.phase === 'ready' ? el.video.duration : 0, song = state.uploaded ? state.uploaded.duration : 0;
+    const len = `${Math.floor(song / 60)}:${String(Math.round(song % 60)).padStart(2, '0')}`;
+    return `♪ ${state.uploadName} · ${len}${film && song && song < film ? ` · repeats smoothly to fill ${Math.round(film)}s` : film && song > film ? ` · fades out at ${Math.round(film)}s` : ''}`;
+  }
   return `♪ ${TRACKS[state.track].label}, an original track made for your film`;
 }
 async function setTrack(v) {
