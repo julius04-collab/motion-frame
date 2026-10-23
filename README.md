@@ -37,4 +37,6 @@ Repo page → **Code → Codespaces → Create codespace on main**. It installs 
 - The server only records the site once (real animations, frame-accurate) into a screen video. You watch it record live inside the mockup.
 - Your browser draws the mockup and backdrop, previews the real motion, and exports the MP4 (WebCodecs). Backdrop, format and camera changes are instant and free; device, speed, resolution and fps re-record.
 - Exports H.264 MP4 in Chrome/Edge/Safari; falls back to VP9 MP4, or WebM in browsers without WebCodecs.
+- Length: Auto, or exactly 10/15/20/30/45 s (re-records).
+- Music: three original tracks made in the browser (Calm, Upbeat, Lo-fi) or upload your own; volume, fade in/out, loops to fit. Added to the MP4 (AAC, or Opus where AAC isn't available).
 - Hugging Face: use `deploy/huggingface-v2/Dockerfile` in its own Space.

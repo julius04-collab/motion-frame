@@ -12,7 +12,7 @@ import os from 'node:os';
 import dns from 'node:dns/promises';
 import net from 'node:net';
 import crypto from 'node:crypto';
-import { DEVICES, QUALITIES, SPEEDS, FPS_OPTIONS, timeline, scrollAt } from './public/shared.js';
+import { DEVICES, QUALITIES, SPEEDS, FPS_OPTIONS, LENGTHS, timeline, scrollAt } from './public/shared.js';
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -164,7 +164,7 @@ const recByKey = new Map();  // key -> id
 let queue = Promise.resolve();
 
 async function record(rec) {
-  const { url, device: deviceId, speed, fps, quality, codec } = rec.opts;
+  const { url, device: deviceId, speed, fps, quality, codec, length } = rec.opts;
   const device = DEVICES[deviceId];
   const dsf = quality === '4k' ? device.dsf : Math.max(1, Math.ceil(device.dsf / 2));
   const browser = await getBrowser();
@@ -199,7 +199,7 @@ async function record(rec) {
 
     const fullH = await page.evaluate(() => Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0));
     const pageH = Math.max(device.viewport.h, Math.min(fullH, MAX_PAGE_CSS));
-    const { duration, scrollSecs } = timeline(Math.max(0, pageH - device.viewport.h), speed);
+    const { duration, scrollSecs } = timeline(Math.max(0, pageH - device.viewport.h), speed, length);
     const frames = Math.ceil(duration * fps);
     Object.assign(rec, { frames, duration, pageHeight: pageH, fullHeight: fullH, truncated: fullH > pageH, phase: 'recording' });
 
@@ -319,7 +319,8 @@ app.post('/api/record', rateLimit('record', Number(process.env.RECORDS_PER_15MIN
   const url = await normalizeUrl(b.url);
   const fps = Number(b.fps || 30);
   if (!DEVICES[b.device] || !SPEEDS[b.speed] || !QUALITIES[b.quality] || !FPS_OPTIONS.includes(fps)) throw userError('Invalid settings.');
-  const opts = { url, device: b.device, speed: b.speed, quality: b.quality, fps, codec: b.codec === 'vp9' ? 'vp9' : 'h264' };
+  const length = LENGTHS.includes(Number(b.length)) ? Number(b.length) : 0;
+  const opts = { url, device: b.device, speed: b.speed, quality: b.quality, fps, codec: b.codec === 'vp9' ? 'vp9' : 'h264', length };
   const key = crypto.createHash('sha1').update(JSON.stringify(opts)).digest('hex').slice(0, 16);
   const existing = recs.get(recByKey.get(key));
   if (!b.fresh && existing && ['queued', 'recording', 'done'].includes(existing.state)) return res.json(view(existing));

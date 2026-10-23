@@ -1,10 +1,11 @@
-import { DEVICES, FORMATS, QUALITIES, BACKDROPS, SPEEDS, FPS_OPTIONS } from './shared.js';
+import { DEVICES, FORMATS, QUALITIES, BACKDROPS, SPEEDS, FPS_OPTIONS, LENGTHS } from './shared.js';
+import { TRACKS, buildBed, decodeUpload } from './audio.js';
 import { drawScene } from './scene.js';
 
 const $ = (id) => document.getElementById(id);
 const el = {
   form: $('urlForm'), url: $('url'), go: $('go'), hint: $('urlHint'), recent: $('recent'), warn: $('warn'),
-  devices: $('devices'), backdrops: $('backdrops'), formats: $('formats'), speeds: $('speeds'), qualities: $('qualities'), fpsOpts: $('fpsOpts'), push: $('push'),
+  devices: $('devices'), backdrops: $('backdrops'), formats: $('formats'), speeds: $('speeds'), lengths: $('lengths'), tracks: $('tracks'), musicFile: $('musicFile'), musicName: $('musicName'), vol: $('vol'), qualities: $('qualities'), fpsOpts: $('fpsOpts'), push: $('push'),
   status: $('status'), statusText: $('statusText'), exportBtn: $('export'), exportText: $('exportText'), fine: $('fine'),
   stage: $('stage'), canvas: $('canvas'), stageMeta: $('stageMeta'), caption: $('caption'), video: $('rec'),
   overlay: $('overlay'), ovPhase: $('ovPhase'), ovPct: $('ovPct'), ovBar: $('ovBar'), ovSub: $('ovSub'), ovCancel: $('ovCancel'),
@@ -22,6 +23,10 @@ const state = {
   custom: /^#[0-9a-f]{6}$/i.test(saved.custom || '') ? saved.custom : '',
   format: FORMATS[saved.format] ? saved.format : '16:9',
   speed: SPEEDS[saved.speed] ? saved.speed : 'normal',
+  length: LENGTHS.includes(saved.length) ? saved.length : 0,
+  track: TRACKS[saved.track] && saved.track !== 'upload' ? saved.track : 'none',
+  volume: typeof saved.volume === 'number' ? saved.volume : 0.8,
+  uploaded: null, uploadName: '',
   quality: QUALITIES[saved.quality] ? saved.quality : '1080p',
   fps: FPS_OPTIONS.includes(saved.fps) ? saved.fps : 30,
   push: saved.push !== false,
@@ -32,7 +37,7 @@ const state = {
   err: '',
   lastUrl: '',
 };
-const persist = () => { try { localStorage.setItem(KEY, JSON.stringify({ device: state.device, backdrop: state.backdrop, custom: state.custom, format: state.format, speed: state.speed, quality: state.quality, fps: state.fps, push: state.push, recent: state.recent })); } catch { /* storage blocked */ } };
+const persist = () => { try { localStorage.setItem(KEY, JSON.stringify({ device: state.device, backdrop: state.backdrop, custom: state.custom, format: state.format, speed: state.speed, length: state.length, track: state.track, volume: state.volume, quality: state.quality, fps: state.fps, push: state.push, recent: state.recent })); } catch { /* storage blocked */ } };
 
 /* ------------------------------------------------------------------ option pickers */
 const ICONS = {
@@ -63,6 +68,8 @@ function radio(parent, items, get, pick, cls = 'chip') {
 const syncs = [
   radio(el.devices, Object.entries(DEVICES).map(([k, d]) => ({ value: k, html: `${ICONS[k]}${d.label}` })), () => state.device, (v) => setRecordOpt('device', v)),
   radio(el.formats, Object.keys(FORMATS).map((k) => ({ value: k, html: k })), () => state.format, (v) => { state.format = v; persist(); sizeCanvas(); refresh(); }),
+  radio(el.lengths, LENGTHS.map((n) => ({ value: n, html: n ? `${n}s` : 'Auto' })), () => state.length, (v) => setRecordOpt('length', Number(v))),
+  radio(el.tracks, Object.entries(TRACKS).map(([k, t]) => ({ value: k, html: t.label })), () => state.track, (v) => setTrack(v)),
   radio(el.speeds, Object.entries(SPEEDS).map(([k, s]) => ({ value: k, html: s.label })), () => state.speed, (v) => setRecordOpt('speed', v)),
   radio(el.qualities, Object.entries(QUALITIES).map(([k, q]) => ({ value: k, html: `${q.label} <small>${q.note}</small>` })), () => state.quality, (v) => setRecordOpt('quality', v)),
   radio(el.fpsOpts, FPS_OPTIONS.map((f) => ({ value: f, html: `${f} fps` })), () => state.fps, (v) => setRecordOpt('fps', Number(v))),
@@ -127,6 +134,53 @@ el.video.addEventListener('play', syncPlayer); el.video.addEventListener('pause'
 el.scrub.addEventListener('input', () => { if (el.video.duration) { el.video.pause(); el.video.currentTime = (el.scrub.value / 1000) * el.video.duration; } });
 addEventListener('keydown', (e) => { if (e.code === 'Space' && !/INPUT|BUTTON|SUMMARY|A/.test(document.activeElement?.tagName || '') && !el.play.disabled) { e.preventDefault(); el.play.click(); } });
 
+
+/* ------------------------------------------------------------------ music */
+let ac = null, bed = null, bedKey = '', bedSrc = null, lastT = 0;
+const audioCtx = () => (ac ||= new (window.AudioContext || window.webkitAudioContext)());
+addEventListener('pointerdown', () => { try { audioCtx().resume(); } catch { /* ignore */ } }, { capture: true });
+el.vol.value = Math.round(state.volume * 100);
+function musicLabel() {
+  if (state.track === 'none') return 'No music. Pick a track, or upload your own.';
+  if (state.track === 'upload') return state.uploadName ? `♪ ${state.uploadName}` : 'Choose an audio file…';
+  return `♪ ${TRACKS[state.track].label}, an original track made for your film`;
+}
+async function setTrack(v) {
+  if (v === 'upload') { el.musicFile.click(); return; }
+  state.track = v; persist(); refresh(); await rebuildBed();
+}
+el.musicFile.addEventListener('change', async () => {
+  const f = el.musicFile.files && el.musicFile.files[0]; el.musicFile.value = '';
+  if (!f) return;
+  try {
+    el.musicName.textContent = 'Reading your audio…';
+    state.uploaded = await decodeUpload(f); state.uploadName = f.name; state.track = 'upload';
+    refresh(); await rebuildBed();
+  } catch { state.uploaded = null; el.musicName.textContent = 'Couldn’t read that file. Try an MP3, M4A or WAV.'; }
+});
+let volTimer = null;
+el.vol.addEventListener('input', () => { state.volume = el.vol.value / 100; persist(); clearTimeout(volTimer); volTimer = setTimeout(rebuildBed, 250); });
+async function rebuildBed() {
+  const dur = state.phase === 'ready' || state.phase === 'exporting' ? el.video.duration : 0;
+  const key = `${state.track}|${dur}|${state.volume}|${state.uploadName}`;
+  if (key === bedKey) return;
+  bedKey = key;
+  bed = dur && state.track !== 'none' ? await buildBed(state.track, dur, state.volume, state.uploaded).catch(() => null) : null;
+  if (key === bedKey) { el.musicName.textContent = musicLabel(); if (!el.video.paused) playBed(); else stopBed(); }
+}
+function stopBed() { try { bedSrc && bedSrc.stop(); } catch { /* ignore */ } bedSrc = null; }
+function playBed() {
+  stopBed();
+  if (!bed || state.phase !== 'ready') return;
+  const c = audioCtx(); if (c.state === 'suspended') c.resume();
+  bedSrc = c.createBufferSource(); bedSrc.buffer = bed; bedSrc.connect(c.destination);
+  bedSrc.start(0, Math.min(bed.duration - 0.01, el.video.currentTime));
+}
+el.video.addEventListener('play', playBed);
+el.video.addEventListener('pause', stopBed);
+el.video.addEventListener('seeked', () => { if (!el.video.paused) playBed(); });
+el.video.addEventListener('timeupdate', () => { const t = el.video.currentTime; if (t + 0.5 < lastT && !el.video.paused) playBed(); lastT = t; }); // film looped
+
 /* ------------------------------------------------------------------ status */
 function setStatus(kind, text) { el.status.dataset.s = kind; el.statusText.textContent = text; }
 const DEFAULT_HINT = 'Press Enter. We record your live site once, then you can restyle it instantly.';
@@ -137,6 +191,7 @@ function refresh() {
   customSw.setAttribute('aria-checked', String(state.backdrop === 'custom'));
   customSw.classList.toggle('has', !!state.custom);
   if (state.custom) customSw.style.setProperty('--c', state.custom);
+  el.musicName.textContent = musicLabel();
   swName.textContent = state.backdrop === 'custom' ? `Custom · ${state.custom}` : BACKDROPS[state.backdrop].label;
   const F = FORMATS[state.format], q = QUALITIES[state.quality];
   el.stageMeta.textContent = `${F.w * q.scale} × ${F.h * q.scale} · ${q.label}${state.fps === 60 ? ' · 60fps' : ''}`;
@@ -169,12 +224,12 @@ async function startRecording(raw) {
   const my = ++token;
   clearTimeout(pollTimer);
   if (state.rec && state.rec.state !== 'done') fetch(`/api/record/${state.rec.id}`, { method: 'DELETE' }).catch(() => {});
-  el.video.pause(); el.video.removeAttribute('src'); el.video.load();
+  el.video.pause(); el.video.removeAttribute('src'); el.video.load(); stopBed(); bed = null; bedKey = '';
   latestImg = null; state.err = ''; state.phase = 'recording'; state.lastUrl = raw;
   el.go.classList.add('busy'); setHint(DEFAULT_HINT);
   showOverlay({ state: 'queued', progress: 0 }); setStatus('busy', 'Recording your site…'); refresh();
   try {
-    const rec = await api('/api/record', { method: 'POST', body: { url: raw, device: state.device, speed: state.speed, quality: state.quality, fps: state.fps, codec: REC_CODEC } });
+    const rec = await api('/api/record', { method: 'POST', body: { url: raw, device: state.device, speed: state.speed, length: state.length, quality: state.quality, fps: state.fps, codec: REC_CODEC } });
     if (my !== token) return;
     state.rec = rec; remember(rec.url);
     el.url.value = rec.url.replace(/^https:\/\//, '').replace(/\/$/, '');
@@ -204,7 +259,7 @@ function loaded(my) {
     state.phase = 'ready'; latestImg = null; hideOverlay(); el.go.classList.remove('busy');
     setHint(r.truncated ? `Very long page — filming the first ${r.pageHeight.toLocaleString()}px of ${r.fullHeight.toLocaleString()}px.` : (r.title ? `Recorded “${r.title.slice(0, 60)}”. Change backdrop or format freely — it’s instant.` : DEFAULT_HINT));
     el.video.play().catch(() => {});
-    refresh();
+    refresh(); bedKey = ''; rebuildBed();
   }, { once: true });
   el.video.load();
 }
@@ -257,6 +312,29 @@ function seek(v, t) {
     v.addEventListener('seeked', done); v.currentTime = t;
   });
 }
+async function pickAudio() {
+  if (!('AudioEncoder' in window)) return null;
+  for (const [codec, mux] of [['mp4a.40.2', 'aac'], ['opus', 'opus']]) {
+    const cfg = { codec, sampleRate: 48000, numberOfChannels: 2, bitrate: 192000 };
+    try { if ((await AudioEncoder.isConfigSupported(cfg)).supported) return { cfg, mux }; } catch { /* next */ }
+  }
+  return null;
+}
+async function encodeAudio(buf, muxer, cfg) {
+  let err = null;
+  const enc = new AudioEncoder({ output: (chunk, meta) => muxer.addAudioChunk(chunk, meta), error: (e) => { err = e; } });
+  enc.configure(cfg);
+  const L = buf.getChannelData(0), R = buf.numberOfChannels > 1 ? buf.getChannelData(1) : L, N = 4800;
+  for (let i = 0; i < buf.length; i += N) {
+    const n = Math.min(N, buf.length - i), data = new Float32Array(n * 2);
+    data.set(L.subarray(i, i + n), 0); data.set(R.subarray(i, i + n), n);
+    const ad = new AudioData({ format: 'f32-planar', sampleRate: buf.sampleRate, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round((i / buf.sampleRate) * 1e6), data });
+    enc.encode(ad); ad.close();
+    if (err) throw err;
+  }
+  await enc.flush(); enc.close();
+  if (err) throw err;
+}
 async function pickCodec(W, H, fps, bitrate) {
   // H.264 first (plays everywhere, what X/LinkedIn want); VP9-in-MP4 as a fallback for browsers without an H.264 encoder.
   for (const [codec, mux] of [['avc1.640034', 'avc'], ['avc1.640033', 'avc'], ['avc1.64002a', 'avc'], ['avc1.4d0034', 'avc'], ['avc1.42e034', 'avc'], ['vp09.00.51.08', 'vp9'], ['vp09.00.41.08', 'vp9']]) {
@@ -283,7 +361,7 @@ el.exportBtn.addEventListener('click', async () => {
   const W = F.w * q.scale, H = F.h * q.scale, fps = state.fps, v = el.video;
   const frames = Math.max(1, Math.round(v.duration * fps));
   state.phase = 'exporting'; exportCancel = false; state.err = ''; refresh();
-  v.pause(); v.loop = false;
+  v.pause(); v.loop = false; stopBed();
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
   const c2 = cv.getContext('2d');
   const t0 = performance.now();
@@ -293,7 +371,11 @@ el.exportBtn.addEventListener('click', async () => {
       const picked = await pickCodec(W, H, fps, Math.round(W * H * fps * 0.14));
       if (!picked) throw new Error('This browser can’t encode video at this size. Try 1080p, or Chrome on a computer.');
       const { cfg, mux } = picked;
-      const muxer = new Muxer({ target: new ArrayBufferTarget(), video: { codec: mux, width: W, height: H, frameRate: fps }, fastStart: 'in-memory' });
+      // music: rendered to exactly the film's length, encoded alongside the video
+      const filmBed = state.track !== 'none' ? await buildBed(state.track, frames / fps, state.volume, state.uploaded).catch(() => null) : null;
+      const aud = filmBed ? await pickAudio() : null;
+      if (filmBed && !aud) state.err = 'Your browser can’t add audio to the video, so this export is silent. Chrome or Edge on a computer can.';
+      const muxer = new Muxer({ target: new ArrayBufferTarget(), video: { codec: mux, width: W, height: H, frameRate: fps }, ...(aud ? { audio: { codec: aud.mux, numberOfChannels: 2, sampleRate: 48000 } } : {}), fastStart: 'in-memory' });
       let encErr = null;
       const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => { encErr = e; } });
       enc.configure(cfg);
@@ -311,9 +393,11 @@ el.exportBtn.addEventListener('click', async () => {
           drawScene(ctx, el.canvas.width, el.canvas.height, frameOpts(v, i / Math.max(1, frames - 1)));
         }
       }
-      await enc.flush(); enc.close(); muxer.finalize();
+      await enc.flush(); enc.close();
+      if (aud) { exportProgress(100, 'Adding music…'); await encodeAudio(filmBed, muxer, aud.cfg); }
+      muxer.finalize();
       const name = saveBlob(new Blob([muxer.target.buffer], { type: 'video/mp4' }), 'mp4');
-      setHint(`Saved ${name} (${(muxer.target.buffer.byteLength / 1048576).toFixed(1)} MB)${mux === 'vp9' ? ' — VP9, since this browser can’t make H.264. Use Chrome or Safari for the most compatible file.' : '.'}`);
+      setHint(`Saved ${name} (${(muxer.target.buffer.byteLength / 1048576).toFixed(1)} MB)${aud ? ' with music' : ''}${mux === 'vp9' ? ' — VP9, since this browser can’t make H.264. Use Chrome or Safari for the most compatible file.' : '.'}`);
     } else {
       // Older browsers: record the canvas in real time (WebM).
       const stream = cv.captureStream(fps);
@@ -333,7 +417,7 @@ el.exportBtn.addEventListener('click', async () => {
       mr.stop(); await stopped; v.pause();
       if (exportCancel) throw new Error('cancelled');
       const name = saveBlob(new Blob(parts, { type: 'video/webm' }), 'webm');
-      setHint(`Saved ${name}. Your browser can’t make MP4, so this is WebM.`);
+      setHint(`Saved ${name}. Your browser can’t make MP4, so this is WebM${state.track !== 'none' ? ' (without music)' : ''}.`);
     }
   } catch (e) {
     if (e.message !== 'cancelled') state.err = 'Export failed: ' + (e.message || e);

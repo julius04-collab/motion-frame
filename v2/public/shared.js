@@ -25,6 +25,8 @@ export const SPEEDS = {
 };
 
 export const FPS_OPTIONS = [30, 60];
+// Film length: 0 = automatic (from page height + scroll speed), otherwise exact seconds.
+export const LENGTHS = [0, 10, 15, 20, 30, 45];
 export const HOLD_START = 0.9;
 export const HOLD_END = 1.1;
 
@@ -32,7 +34,8 @@ export function easeScroll(t) {
   const s = t * t * t * (t * (t * 6 - 15) + 10);
   return 0.45 * t + 0.55 * s;
 }
-export function timeline(scrollPx, speed = 'normal') {
+export function timeline(scrollPx, speed = 'normal', length = 0) {
+  if (length > 0) return { duration: length, scrollSecs: scrollPx <= 0 ? 0 : Math.max(1, length - HOLD_START - HOLD_END) };
   const pps = (SPEEDS[speed] || SPEEDS.normal).pxPerSec;
   const scrollSecs = scrollPx <= 0 ? 0 : Math.min(24, Math.max(3.5, scrollPx / pps));
   return { duration: HOLD_START + scrollSecs + HOLD_END, scrollSecs };
