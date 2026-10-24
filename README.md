@@ -41,3 +41,9 @@ Repo page → **Code → Codespaces → Create codespace on main**. It installs 
 - Desktop and phone versions are recorded together on the first go, so switching device is instant.
 - Music: four original tracks made in the browser (Calm piano, Upbeat, Lo-fi, Cinematic) or upload your own (stays selectable as its own chip); volume, fade in/out, loops to fit. Added to the MP4 (AAC, or Opus where AAC isn't available).
 - Hugging Face: use `deploy/huggingface-v2/Dockerfile` in its own Space.
+
+### Launch settings (environment variables)
+- `WATERMARK=off` turns off the "made with motionframe" badge (on by default).
+- `WAITLIST_URL=https://…` shows a "Get Pro first →" button in the footer (e.g. a Tally or Google Form).
+- `FEEDBACK_URL` / `FEEDBACK_LABEL` change the footer feedback link (default: x.com/Julious_design).
+- `RECORDS_PER_15MIN` (default 16; each site uses 2: desktop + phone).

@@ -4,7 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>motionframe v2 — turn live sites into launch-ready films</title>
-<meta name="description" content="Paste a link, watch your real site move inside a device mockup, and download the video.">
+<meta name="description" content="Paste a link, watch your real site move inside a device mockup, and download the video. Free while in beta.">
+<meta property="og:title" content="motionframe — turn live sites into launch-ready films">
+<meta property="og:description" content="Paste a link. Get a smooth scrolling video of your real site, animations and all, inside a clean device mockup.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%231a1f2b'/%3E%3Cpath d='M11 21 21 11M13 11h8v8' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/app.css">
 </head>
@@ -112,6 +116,15 @@
       <p class="caption" id="caption">The preview is the real recording of your site. The download matches it frame for frame.</p>
     </section>
   </main>
+
+  <footer class="foot">
+    <span class="beta-note"><b>Free while in beta.</b> Films carry a small motionframe badge.</span>
+    <span class="links">
+      <a id="waitlist" class="pro" href="#" target="_blank" rel="noopener" hidden>Get Pro first →</a>
+      <a id="feedback" href="https://x.com/Julious_design" target="_blank" rel="noopener">Feedback → @Julious_design</a>
+    </span>
+    <span class="legal">Only film sites you own or have permission to show. Videos are deleted from our server after 2 hours.</span>
+  </footer>
 </div>
 <video id="rec" muted playsinline preload="auto" crossorigin="anonymous" hidden></video>
 <script type="module" src="/app.js"></script>

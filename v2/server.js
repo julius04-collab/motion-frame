@@ -313,7 +313,7 @@ const view = (r) => ({
   videoUrl: r.state === 'done' ? `/rec/${r.id}.${r.ext || 'mp4'}` : undefined,
 });
 
-app.post('/api/record', rateLimit('record', Number(process.env.RECORDS_PER_15MIN || 10), 15 * 60_000), wrap(async (req, res) => {
+app.post('/api/record', rateLimit('record', Number(process.env.RECORDS_PER_15MIN || 16), 15 * 60_000), wrap(async (req, res) => {
   if (!FFMPEG) throw userError(NO_FFMPEG);
   const b = req.body || {};
   const url = await normalizeUrl(b.url);
@@ -344,7 +344,14 @@ app.get('/api/record/:id/latest.jpg', (req, res) => {
   res.set('Cache-Control', 'no-store').type('jpeg').send(r.latest);
 });
 app.delete('/api/record/:id', (req, res) => { const r = recs.get(req.params.id); if (r) { r.cancelled = true; recByKey.delete(r.key); } res.json({ ok: true }); });
-app.get('/api/health', (_req, res) => res.json({ ok: true, version: 2, encoder: !!FFMPEG, allowPrivate: ALLOW_PRIVATE }));
+// Launch settings, set as environment variables on the host (Hugging Face: Space → Settings → Variables).
+const LAUNCH = {
+  watermark: process.env.WATERMARK !== 'off',                 // "made with motionframe" on exports
+  waitlistUrl: /^https:\/\//.test(process.env.WAITLIST_URL || '') ? process.env.WAITLIST_URL : '',
+  feedbackUrl: /^https:\/\//.test(process.env.FEEDBACK_URL || '') ? process.env.FEEDBACK_URL : 'https://x.com/Julious_design',
+  feedbackLabel: process.env.FEEDBACK_LABEL || '@Julious_design',
+};
+app.get('/api/health', (_req, res) => res.json({ ok: true, version: 2, encoder: !!FFMPEG, allowPrivate: ALLOW_PRIVATE, ...LAUNCH }));
 
 setInterval(() => {
   const cutoff = Date.now() - 2 * 3600_000;

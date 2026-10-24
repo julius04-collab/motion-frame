@@ -40,6 +40,7 @@ const state = {
   err: '',
   lastUrl: '',
 };
+const launch = { watermark: true };
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify({ device: state.device, backdrop: state.backdrop, custom: state.custom, format: state.format, speed: state.speed, length: state.length, track: state.track === 'mine' ? 'none' : state.track, volume: state.volume, quality: state.quality, fps: state.fps, push: state.push, recent: state.recent })); } catch { /* storage blocked */ } };
 
 // one <video> per recording kind, so switching device is instant
@@ -130,7 +131,7 @@ function frameOpts(source, p) {
   const r = R();
   return {
     format: state.format, device: state.device, backdrop: state.backdrop, custom: state.custom,
-    source, host: r ? r.host : '', p: state.push ? p : 0,
+    source, host: r ? r.host : '', p: state.push ? p : 0, watermark: launch.watermark,
     placeholder: state.phase === 'recording' ? ['Recording your site…', 'It appears here as it records.'] : state.phase === 'error' ? ['Couldn’t record that site', 'Check the link and try again.'] : undefined,
   };
 }
@@ -528,6 +529,12 @@ window.__mfDebug = () => ({ track: state.track, phase: state.phase, device: stat
 
 /* ------------------------------------------------------------------ boot */
 fetch('/api/health').then((r) => r.json()).then((h) => {
+  if (h) {
+    launch.watermark = h.watermark !== false;
+    if (h.waitlistUrl) { const w = $('waitlist'); w.href = h.waitlistUrl; w.hidden = false; }
+    if (h.feedbackUrl) { const f = $('feedback'); f.href = h.feedbackUrl; f.textContent = `Feedback → ${h.feedbackLabel || 'us'}`; }
+    if (!launch.watermark) document.querySelector('.beta-note').innerHTML = '<b>Free while in beta.</b>';
+  }
   if (h && h.encoder === false) { el.warn.hidden = false; el.warn.textContent = 'Heads up: the recorder’s video encoder (ffmpeg) isn’t working on this computer. Run “npm install” again, or install ffmpeg, then restart.'; }
 }).catch(() => {});
 if (!('VideoEncoder' in window)) el.fine.textContent = 'Your browser can’t export MP4 directly, so downloads will be WebM. Chrome or Edge on a computer export MP4.';

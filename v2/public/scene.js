@@ -157,11 +157,23 @@ export function drawScene(ctx, W, H, opts) {
 
   if (opts.watermark) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    const fs = Math.round(18 * k0);
-    ctx.font = `600 ${fs}px "Hanken Grotesk", system-ui, sans-serif`; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
-    const dark = (opts.backdrop === 'custom' ? false : (BACKDROPS[opts.backdrop] || {}).dark);
-    ctx.fillStyle = dark ? 'rgba(255,255,255,0.7)' : 'rgba(20,24,32,0.55)';
-    ctx.fillText('made with motionframe', W - 28 * k0, H - 22 * k0);
+    const u = k0 * (opts.format === '16:9' ? 1 : 1.15);   // scale with the frame
+    const pad = 10 * u, mark = 26 * u, gap = 9 * u, fs1 = 11 * u, fs2 = 16 * u;
+    ctx.font = `600 ${fs2}px "Hanken Grotesk", system-ui, sans-serif`;
+    const tw = Math.max(ctx.measureText('motionframe').width, (ctx.font = `500 ${fs1}px "Hanken Grotesk", system-ui, sans-serif`, ctx.measureText('made with').width));
+    const w = pad * 2 + mark + gap + tw, h = mark + pad * 2;
+    const x = W - w - 28 * k0, y = H - h - 24 * k0;
+    rr(ctx, x, y, w, h, h / 2.4); ctx.fillStyle = 'rgba(255,255,255,0.86)'; ctx.fill();
+    ctx.lineWidth = 1 * u; ctx.strokeStyle = 'rgba(20,24,32,0.08)'; ctx.stroke();
+    rr(ctx, x + pad, y + pad, mark, mark, 7 * u); ctx.fillStyle = '#1a1f2b'; ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.4 * u; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const cx = x + pad + mark / 2, cy = y + pad + mark / 2, q = mark * 0.2;
+    ctx.beginPath(); ctx.moveTo(cx - q, cy + q); ctx.lineTo(cx + q, cy - q); ctx.moveTo(cx - q * 0.6, cy - q); ctx.lineTo(cx + q, cy - q); ctx.lineTo(cx + q, cy + q * 0.6); ctx.stroke();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = 'rgba(20,24,32,0.55)'; ctx.font = `500 ${fs1}px "Hanken Grotesk", system-ui, sans-serif`;
+    ctx.fillText('made with', x + pad + mark + gap, y + pad + fs1 * 0.95);
+    ctx.fillStyle = '#141a24'; ctx.font = `600 ${fs2}px "Hanken Grotesk", system-ui, sans-serif`;
+    ctx.fillText('motionframe', x + pad + mark + gap, y + pad + mark - 1 * u);
   }
   ctx.restore();
 }

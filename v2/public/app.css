@@ -208,3 +208,12 @@ h1 { margin: 0 0 36px; font-size: clamp(34px, 3.4vw, 46px); line-height: 1.06; f
 .fine.left { text-align: left; margin-top: 8px; }
 .chip.mine { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; line-height: 38px; }
 .chip.add { border-style: dashed; color: var(--muted); }
+
+.foot { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: center; justify-content: space-between; font-size: 14px; color: var(--muted); }
+.foot b { color: var(--ink); font-weight: 600; }
+.foot .links { display: flex; gap: 16px; align-items: center; }
+.foot a { color: var(--ink); text-decoration: none; font-weight: 600; }
+.foot a:hover { text-decoration: underline; }
+.foot a.pro { background: var(--navy); color: #fff; padding: 8px 14px; border-radius: 10px; }
+.foot a.pro:hover { text-decoration: none; background: #0d1118; }
+.foot .legal { flex-basis: 100%; font-size: 12.5px; color: #8a929c; }
