@@ -137,7 +137,7 @@ export function drawScene(ctx, W, H, opts) {
   const g = deviceGeometry(opts.device);
   const padX = opts.format === '9:16' ? 0.9 : opts.format === '1:1' ? 0.86 : 0.84;
   const padY = opts.format === '9:16' ? 0.86 : 0.82;
-  const fit = Math.min((F.w * padX) / g.w, (F.h * padY) / g.h, 1.4);
+  const fit = Math.min((F.w * padX) / g.w, (F.h * padY) / g.h, 2.4); // phones fill tall formats properly
   const p = Math.min(1, Math.max(0, opts.p || 0));
   const s = fit * (1.035 - 0.035 * p); // gentle camera push-in that settles
   const ty = 8 - 16 * p;

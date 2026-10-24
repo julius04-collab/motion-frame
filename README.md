@@ -47,3 +47,8 @@ Repo page → **Code → Codespaces → Create codespace on main**. It installs 
 - `WAITLIST_URL=https://…` changes the "Get Pro first →" button link (default: the motionframe Pro Google Form).
 - `FEEDBACK_URL` / `FEEDBACK_LABEL` change the footer feedback link (default: x.com/Julious_design).
 - `RECORDS_PER_15MIN` (default 16; each site uses 2: desktop + phone).
+
+## Launching from your laptop (free)
+1. Install Cloudflare's tunnel once: `winget install --id Cloudflare.cloudflared` (Windows) or `brew install cloudflared` (Mac).
+2. `npm install`, then `npm run launch`. It starts the v2 studio, opens a free public link, writes it into `landing/config.js` and pushes it so the landing page's buttons follow. Keep the window open and the laptop awake.
+3. Landing page: import this repo on Vercel with **Root Directory = `landing`** (framework: Other). It redeploys automatically when the link changes.

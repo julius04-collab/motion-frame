@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server/index.js",
     "postinstall": "playwright install chromium || echo \"Skipped Chromium download (Chrome will be used if installed)\"",
-    "v2": "node v2/server.js"
+    "v2": "node v2/server.js",
+    "launch": "node scripts/launch.mjs"
   },
   "dependencies": {
     "@ffmpeg-installer/ffmpeg": "^1.1.0",

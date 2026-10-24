@@ -351,7 +351,7 @@ const LAUNCH = {
   feedbackUrl: /^https:\/\//.test(process.env.FEEDBACK_URL || '') ? process.env.FEEDBACK_URL : 'https://x.com/Julious_design',
   feedbackLabel: process.env.FEEDBACK_LABEL || '@Julious_design',
 };
-app.get('/api/health', (_req, res) => res.json({ ok: true, version: 2, encoder: !!FFMPEG, allowPrivate: ALLOW_PRIVATE, ...LAUNCH }));
+app.get('/api/health', (_req, res) => res.set('Access-Control-Allow-Origin', '*').json({ ok: true, version: 2, encoder: !!FFMPEG, allowPrivate: ALLOW_PRIVATE, ...LAUNCH }));
 
 setInterval(() => {
   const cutoff = Date.now() - 2 * 3600_000;
