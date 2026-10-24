@@ -44,6 +44,6 @@ Repo page → **Code → Codespaces → Create codespace on main**. It installs 
 
 ### Launch settings (environment variables)
 - `WATERMARK=off` turns off the "made with motionframe" badge (on by default).
-- `WAITLIST_URL=https://…` shows a "Get Pro first →" button in the footer (e.g. a Tally or Google Form).
+- `WAITLIST_URL=https://…` changes the "Get Pro first →" button link (default: the motionframe Pro Google Form).
 - `FEEDBACK_URL` / `FEEDBACK_LABEL` change the footer feedback link (default: x.com/Julious_design).
 - `RECORDS_PER_15MIN` (default 16; each site uses 2: desktop + phone).

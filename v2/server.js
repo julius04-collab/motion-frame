@@ -347,7 +347,7 @@ app.delete('/api/record/:id', (req, res) => { const r = recs.get(req.params.id);
 // Launch settings, set as environment variables on the host (Hugging Face: Space → Settings → Variables).
 const LAUNCH = {
   watermark: process.env.WATERMARK !== 'off',                 // "made with motionframe" on exports
-  waitlistUrl: /^https:\/\//.test(process.env.WAITLIST_URL || '') ? process.env.WAITLIST_URL : '',
+  waitlistUrl: /^https:\/\//.test(process.env.WAITLIST_URL || '') ? process.env.WAITLIST_URL : 'https://docs.google.com/forms/d/e/1FAIpQLScueqm8YKUAq_AhEvxrX--hKgTcUbmBFHW-NqCbPidP9EXKXQ/viewform',
   feedbackUrl: /^https:\/\//.test(process.env.FEEDBACK_URL || '') ? process.env.FEEDBACK_URL : 'https://x.com/Julious_design',
   feedbackLabel: process.env.FEEDBACK_LABEL || '@Julious_design',
 };
