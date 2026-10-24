@@ -10,18 +10,38 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = Number(process.env.PORT || 4174);
 const PUSH = !process.argv.includes('--no-push');
-const CF = process.env.CLOUDFLARED || 'cloudflared';
 const isWin = process.platform === 'win32';
 const say = (m) => console.log(`\x1b[1m[motionframe]\x1b[0m ${m}`);
 const children = [];
 const stop = () => { for (const c of children) { try { c.kill(); } catch { /* ignore */ } } process.exit(0); };
 process.on('SIGINT', stop); process.on('SIGTERM', stop);
 
-// 1. cloudflared installed?
-if (spawnSync(CF, ['--version'], { shell: isWin }).status !== 0) {
-  say('cloudflared is not installed yet. Install it once, then run this again:');
-  console.log(isWin ? '    winget install --id Cloudflare.cloudflared' : process.platform === 'darwin' ? '    brew install cloudflared' : '    see https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/');
-  process.exit(1);
+// 1. Find cloudflared: on PATH, or our own copy in bin/. If neither, download Cloudflare's official build once.
+const BIN = path.join(ROOT, 'bin');
+const local = path.join(BIN, isWin ? 'cloudflared.exe' : 'cloudflared');
+const works = (cmd) => { try { return spawnSync(cmd, ['--version'], { shell: isWin && cmd === 'cloudflared' }).status === 0; } catch { return false; } };
+let CF = process.env.CLOUDFLARED || (works('cloudflared') ? 'cloudflared' : local);
+if (!works(CF)) {
+  const arch = process.arch === 'arm64' ? 'arm64' : 'amd64';
+  const asset = isWin ? `cloudflared-windows-${arch}.exe` : process.platform === 'darwin' ? `cloudflared-darwin-${arch}.tgz` : `cloudflared-linux-${arch}`;
+  const src = `https://github.com/cloudflare/cloudflared/releases/latest/download/${asset}`;
+  say('Downloading Cloudflare’s tunnel tool (one time, about 40 MB)…');
+  try {
+    const r = await fetch(src);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    fs.mkdirSync(BIN, { recursive: true });
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (asset.endsWith('.tgz')) { const tgz = path.join(BIN, 'cf.tgz'); fs.writeFileSync(tgz, buf); spawnSync('tar', ['-xzf', tgz, '-C', BIN]); fs.rmSync(tgz, { force: true }); }
+    else fs.writeFileSync(local, buf);
+    if (!isWin) fs.chmodSync(local, 0o755);
+  } catch (e) {
+    say(`Couldn't download it (${e.message}). Download this file in your browser and put it in the "bin" folder inside motion-frame:`);
+    console.log('    ' + src + (isWin ? '\n    (keep the name cloudflared.exe)' : ''));
+    process.exit(1);
+  }
+  CF = local;
+  if (!works(CF)) { say('The downloaded tunnel tool won’t start. Send a screenshot of this window.'); process.exit(1); }
+  say('Tunnel tool ready.');
 }
 
 // 2. Start the studio. It is public through the tunnel, so: block private addresses and keep rate limits on.
@@ -38,9 +58,12 @@ for (let i = 0; i < 60 && !(await health(`http://127.0.0.1:${PORT}`)); i++) awai
 
 // 3. Open the free tunnel and catch its link.
 say('Opening the public link (Cloudflare)…');
-const tunnel = spawn(CF, ['tunnel', '--no-autoupdate', '--url', `http://127.0.0.1:${PORT}`], { shell: isWin, stdio: ['ignore', 'pipe', 'pipe'] });
+const tunnel = spawn(CF, ['tunnel', '--no-autoupdate', '--url', `http://127.0.0.1:${PORT}`], { shell: isWin && CF === 'cloudflared', stdio: ['ignore', 'pipe', 'pipe'] });
 children.push(tunnel);
-tunnel.on('exit', (c) => { say(`The tunnel closed (code ${c}).`); stop(); });
+let tail = [];
+const keep = (d) => { tail.push(...String(d).split('\n').filter(Boolean)); tail = tail.slice(-6); };
+tunnel.stdout.on('data', keep); tunnel.stderr.on('data', keep);
+tunnel.on('exit', (c) => { say(`The tunnel closed (code ${c}). Cloudflare said:`); console.log(tail.map((l) => '    ' + l).join('\n')); stop(); });
 const url = await new Promise((resolve, reject) => {
   const t = setTimeout(() => reject(new Error('No link from Cloudflare after 60 s. Check your internet and run again.')), 60_000);
   const look = (d) => { const m = String(d).match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/); if (m) { clearTimeout(t); resolve(m[0]); } };
