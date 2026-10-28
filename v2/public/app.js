@@ -541,4 +541,9 @@ if (!('VideoEncoder' in window)) el.fine.textContent = 'Your browser can’t exp
 renderTracks(); sizeCanvas(); renderRecent(); refresh();
 requestAnimationFrame(draw);
 document.fonts?.ready.then(() => refresh());
-el.url.focus();
+// Arriving from the landing page with a link (?url=…): fill it in and start recording straight away.
+const fromLanding = new URLSearchParams(location.search).get('url');
+if (fromLanding) {
+  history.replaceState(null, '', location.pathname);
+  el.url.value = fromLanding; startRecording(fromLanding);
+} else el.url.focus();
