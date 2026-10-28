@@ -23,6 +23,8 @@ const HOST = process.env.HOST || '127.0.0.1';
 const LOOPBACK = ['127.0.0.1', 'localhost', '::1'].includes(HOST);
 const ALLOW_PRIVATE = process.env.ALLOW_PRIVATE ? process.env.ALLOW_PRIVATE === '1' : LOOPBACK;
 const MAX_PAGE_CSS = Number(process.env.MAX_PAGE_PX || 30000);
+const GOTO_TIMEOUT = Number(process.env.GOTO_TIMEOUT_MS || 60000); // first response + HTML
+const LOAD_GRACE = Number(process.env.LOAD_GRACE_MS || 25000);     // extra wait for images and fonts
 const DATA = process.env.MOTIONFRAME_DATA || path.join(os.tmpdir(), 'motionframe-v2');
 fs.mkdirSync(path.join(DATA, 'rec'), { recursive: true });
 
@@ -194,12 +196,18 @@ async function record(rec) {
     });
     rec.phase = 'loading';
     let resp;
-    try { resp = await page.goto(url, { waitUntil: 'load', timeout: 30_000 }); } catch (e) {
+    // Start as soon as the page itself has arrived, then give images and fonts extra time.
+    // A slow connection or one stubborn file shouldn't fail the whole recording.
+    const open = () => page.goto(url, { waitUntil: 'domcontentloaded', timeout: GOTO_TIMEOUT });
+    try { resp = await open(); } catch (e) {
       const msg = String(e.message).split('\n')[0];
       if (/ERR_NAME_NOT_RESOLVED/.test(msg)) throw userError('We couldn’t find that site. Check the spelling and try again.');
       if (/ERR_CONNECTION_REFUSED/.test(msg)) throw userError('That site refused the connection. Is it running?');
-      throw userError('That site took too long to load (30s). Try again in a moment.');
+      if (/ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED/.test(msg)) throw userError('The studio lost its internet connection. Check the laptop’s connection and try again.');
+      console.warn(`[v2] slow first load (${msg}), trying once more`);
+      try { resp = await open(); } catch { throw userError(`That site took too long to load (${Math.round(GOTO_TIMEOUT / 1000)}s, twice). Check the link opens in your browser, then try again.`); }
     }
+    await page.waitForLoadState('load', { timeout: LOAD_GRACE }).catch(() => console.warn('[v2] some files were still loading; recording anyway'));
     await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     await bufferVideos(page, 8000);
     await page.waitForTimeout(400);
