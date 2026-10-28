@@ -29,7 +29,16 @@ fs.mkdirSync(path.join(DATA, 'rec'), { recursive: true });
 const userError = (message) => Object.assign(new Error(message), { user: true });
 
 /* ------------------------------------------------------------------ ffmpeg */
-function ffmpegWorks(bin) { try { return spawnSync(bin, ['-version'], { timeout: 8000 }).status === 0; } catch { return false; } }
+// 30 s: on Windows the first run of a new ffmpeg.exe can be held up by an antivirus scan.
+const ffmpegTried = [];
+function ffmpegWorks(bin) {
+  try {
+    const r = spawnSync(bin, ['-version'], { timeout: 30000, windowsHide: true });
+    if (r.status === 0) return true;
+    ffmpegTried.push(`${bin} → ${r.error ? r.error.code || r.error.message : 'exit ' + r.status}`);
+  } catch (e) { ffmpegTried.push(`${bin} → ${e.code || e.message}`); }
+  return false;
+}
 function findFfmpeg() {
   const cands = [process.env.FFMPEG_PATH];
   for (const name of ['ffmpeg-static', '@ffmpeg-installer/ffmpeg']) {
@@ -362,7 +371,7 @@ setInterval(() => {
 process.on('unhandledRejection', (e) => console.error('[v2] unhandled rejection:', e && e.stack || e));
 process.on('uncaughtException', (e) => console.error('[v2] uncaught exception:', e && e.stack || e));
 app.listen(PORT, HOST, () => {
-  if (!FFMPEG) console.warn('[v2] WARNING: ' + NO_FFMPEG);
+  if (!FFMPEG) { console.warn('[v2] WARNING: ' + NO_FFMPEG); for (const t of ffmpegTried) console.warn('       tried: ' + t); }
   console.log(`motionframe v2 running → http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}${ALLOW_PRIVATE ? '' : '  (private addresses blocked)'}`);
 });
 const shutdown = async () => { try { (await browserPromise)?.close(); } catch { /* ignore */ } process.exit(0); };

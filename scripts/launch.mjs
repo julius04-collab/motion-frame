@@ -75,12 +75,15 @@ const cfgPath = path.join(ROOT, 'landing', 'config.js');
 const cfg = fs.readFileSync(cfgPath, 'utf8').replace(/appUrl:\s*'[^']*'/, `appUrl: '${url}'`);
 fs.writeFileSync(cfgPath, cfg);
 if (PUSH) {
-  const git = (...a) => spawnSync('git', a, { cwd: ROOT, encoding: 'utf8', shell: isWin });
+  // No shell here: on Windows a shell would split the commit message into separate words.
+  const git = (...a) => spawnSync('git', a, { cwd: ROOT, encoding: 'utf8', windowsHide: true });
   git('add', 'landing/config.js');
-  const c = git('commit', '-m', 'Update studio link');
-  const p = git('push');
-  if (p.status === 0) say('Landing page updated (Vercel redeploys in about a minute).');
-  else say(`Couldn't push to GitHub (${(p.stderr || c.stderr || '').trim().split('\n').pop()}). Update landing/config.js by hand if needed.`);
+  const c = git('commit', '-m', 'Update studio link', '--', 'landing/config.js');
+  const nothing = /nothing to commit|no changes added/i.test((c.stdout || '') + (c.stderr || ''));
+  const p = c.status === 0 ? git('push') : null;
+  if (p && p.status === 0) say('Landing page updated (Vercel redeploys in about a minute).');
+  else if (nothing) say('Landing page already has this link.');
+  else say(`Couldn't update the landing page on GitHub: ${((p && p.stderr) || c.stderr || c.stdout || '').trim().split('\n').pop()}`);
 }
 
 // 5. Wait until the public link answers.
